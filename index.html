@@ -72,15 +72,17 @@
                 <div class="checkout-section">
                     <label class="section-label">Checkout Rule</label>
                     <div class="mode-buttons checkout-modes">
-                        <button class="checkout-btn active" data-checkout="below-zero">Below Zero</button>
+                        <button class="checkout-btn active" data-checkout="zero-or-less">Zero or Less</button>
                         <button class="checkout-btn" data-checkout="straight">Straight Out</button>
                         <button class="checkout-btn" data-checkout="double">Double Out</button>
                     </div>
+                    <p class="checkout-hint" id="checkout-hint">Score reaches zero or below to win. No bust possible.</p>
                 </div>
                 <div class="handicap-section">
                     <label class="section-label">Player Handicaps</label>
                     <p class="handicap-hint">Adjust each player's starting score relative to the base</p>
                     <div id="handicap-list" class="handicap-list"></div>
+                    <button id="clear-handicaps-btn" class="clear-handicaps-btn">Reset All Handicaps</button>
                 </div>
             </div>
 
@@ -123,12 +125,6 @@
             <div class="score-input-display" id="score-display">0</div>
         </div>
 
-        <div class="multiplier-row">
-            <button class="mult-btn active" data-mult="1">Single</button>
-            <button class="mult-btn" data-mult="2">Double</button>
-            <button class="mult-btn" data-mult="3">Triple</button>
-        </div>
-
         <div class="dart-tracker">
             <span class="dart-label">Darts:</span>
             <div class="dart-dots">
@@ -145,31 +141,15 @@
             </button>
         </div>
 
-        <div class="numpad">
-            <button class="num-btn" data-num="1">1</button>
-            <button class="num-btn" data-num="2">2</button>
-            <button class="num-btn" data-num="3">3</button>
-            <button class="num-btn" data-num="4">4</button>
-            <button class="num-btn" data-num="5">5</button>
-            <button class="num-btn" data-num="6">6</button>
-            <button class="num-btn" data-num="7">7</button>
-            <button class="num-btn" data-num="8">8</button>
-            <button class="num-btn" data-num="9">9</button>
-            <button class="num-btn" data-num="10">10</button>
-            <button class="num-btn" data-num="11">11</button>
-            <button class="num-btn" data-num="12">12</button>
-            <button class="num-btn" data-num="13">13</button>
-            <button class="num-btn" data-num="14">14</button>
-            <button class="num-btn" data-num="15">15</button>
-            <button class="num-btn" data-num="16">16</button>
-            <button class="num-btn" data-num="17">17</button>
-            <button class="num-btn" data-num="18">18</button>
-            <button class="num-btn" data-num="19">19</button>
-            <button class="num-btn" data-num="20">20</button>
-            <button class="num-btn bull-btn" data-num="25">BULL</button>
-            <button class="num-btn miss-btn" data-num="0">MISS</button>
+        <div class="dartboard-container" id="dartboard-container">
+            <canvas id="dartboard-canvas"></canvas>
+            <div class="magnifier" id="magnifier" style="display:none;">
+                <canvas id="magnifier-canvas" width="260" height="260"></canvas>
+                <div class="magnifier-label" id="magnifier-label"></div>
+            </div>
         </div>
 
+        <button id="miss-btn" class="miss-board-btn">MISS</button>
         <button id="submit-turn-btn" class="submit-btn" disabled>Submit Turn</button>
     </div>
 </div>
@@ -202,6 +182,11 @@
                 <canvas id="score-chart"></canvas>
             </div>
         </div>
+        <div class="finish-hotspots-section" id="finish-hotspots-section">
+            <h3 class="finish-section-title">Dart Hotspots</h3>
+            <div class="hotspot-carousel" id="hotspot-carousel"></div>
+            <div class="hotspot-dots" id="hotspot-dots"></div>
+        </div>
         <div class="finish-detailed-stats" id="finish-detailed-stats"></div>
         <div class="finish-actions">
             <button id="finish-rematch-btn" class="action-btn primary-action">Rematch</button>
@@ -227,25 +212,29 @@
                 <p>Numbers <strong>1–20</strong> with single, double, and triple areas. Center: <strong>Bullseye (50)</strong> and <strong>Outer Bull (25)</strong>.</p>
             </div>
             <div class="rule-section">
+                <h3>📱 How to Score</h3>
+                <p><strong>Press and hold</strong> on the dartboard to see a magnified view. <strong>Drag</strong> to aim precisely, then <strong>release</strong> to register your dart.</p>
+            </div>
+            <div class="rule-section">
                 <h3>📋 Gameplay</h3>
                 <ul>
                     <li>Each player throws <strong>3 darts</strong> per turn</li>
                     <li><strong>Single:</strong> Face value (1–20)</li>
-                    <li><strong>Double:</strong> 2× the number</li>
-                    <li><strong>Triple:</strong> 3× the number</li>
+                    <li><strong>Double:</strong> 2× the number (outer ring)</li>
+                    <li><strong>Triple:</strong> 3× the number (inner ring)</li>
                     <li><strong>Bullseye:</strong> 25 (outer) or 50 (double bull)</li>
                 </ul>
             </div>
             <div class="rule-section">
                 <h3>🏁 Checkout Rules</h3>
-                <p><strong>Below Zero:</strong> First player whose score goes <strong>below zero</strong> wins.</p>
+                <p><strong>Zero or Less:</strong> First player whose score reaches <strong>zero or below</strong> wins.</p>
                 <p><strong>Straight Out:</strong> Reach <strong>exactly zero</strong> to win.</p>
                 <p><strong>Double Out:</strong> Finish on a <strong>double</strong> at exactly zero.</p>
             </div>
             <div class="rule-section">
                 <h3>💥 Bust</h3>
                 <p>In Straight/Double Out, going below zero (or to 1 in Double Out) voids your turn.</p>
-                <p>Below Zero has <strong>no bust</strong>.</p>
+                <p>Zero or Less has <strong>no bust</strong>.</p>
             </div>
             <div class="rule-section">
                 <h3>⚖️ Handicaps</h3>

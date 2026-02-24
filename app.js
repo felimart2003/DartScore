@@ -1,5 +1,6 @@
 /* ============================================
    DARTSCORE - Application Logic
+   Interactive Dartboard · Hotspots · Handicaps
    ============================================ */
 
 // ==================== AVATARS ====================
@@ -18,15 +19,46 @@ const PLAYER_COLORS = [
     '#a78bfa', '#fb923c', '#f472b6', '#38bdf8',
 ];
 
+// ==================== DARTBOARD CONSTANTS ====================
+const BOARD_ORDER = [20, 1, 18, 4, 13, 6, 10, 15, 2, 17, 3, 19, 7, 16, 8, 11, 14, 9, 12, 5];
+
+const RING = {
+    BULL_INNER: 0.06,
+    BULL_OUTER: 0.16,
+    TRIPLE_INNER: 0.52,
+    TRIPLE_OUTER: 0.60,
+    DOUBLE_INNER: 0.88,
+    DOUBLE_OUTER: 1.0,
+    NUMBER_RING: 1.12,
+};
+
+const BOARD_COLORS = {
+    darkArea:   '#1a1e30',
+    lightArea:  '#c8bc96',
+    redRing:    '#d93c47',
+    greenRing:  '#2d8a4e',
+    greenBull:  '#2d8a4e',
+    redBull:    '#d93c47',
+    wire:       '#7a8899',
+    wireThin:   '#6a7888',
+    boardBg:    '#111827',
+    numColor:   '#b0b8c8',
+};
+
+const CHECKOUT_DESCRIPTIONS = {
+    'zero-or-less': 'Score reaches zero or below to win. No bust possible.',
+    'straight': 'Must reach exactly zero. Going below zero is a bust.',
+    'double': 'Must finish on a double at exactly zero. Going below zero or to 1 is a bust.',
+};
+
 // ==================== STATE ====================
 let state = {
     startingScore: 301,
-    checkoutRule: 'below-zero',
+    checkoutRule: 'zero-or-less',
     players: [],
     currentPlayerIndex: 0,
     round: 1,
     darts: [],
-    currentMultiplier: 1,
     history: [],
     gameOver: false,
     winners: [],
@@ -58,6 +90,22 @@ const undoDartBtn       = $('#undo-dart-btn');
 const clearRoundBtn     = $('#clear-round-btn');
 const winnerBanner      = $('#winner-banner');
 const seeResultsHeaderBtn = $('#see-results-header-btn');
+const dartboardCanvas   = $('#dartboard-canvas');
+const dartboardContainer = $('#dartboard-container');
+const magnifier         = $('#magnifier');
+const magnifierCanvas   = $('#magnifier-canvas');
+const magnifierLabel    = $('#magnifier-label');
+const missBtn           = $('#miss-btn');
+
+// ==================== BOARD STATE ====================
+let boardSize = 0;
+let boardCenterX = 0;
+let boardCenterY = 0;
+let boardRadius = 0;
+let boardDPR = 1;
+let offscreenBoard = null;
+let boardActive = false;
+let currentHit = null;
 
 // ==================== SETUP PLAYERS ====================
 let setupPlayers = [
@@ -86,7 +134,6 @@ function renderSetupPlayers() {
         playerList.appendChild(div);
     });
 
-    // Name input listeners
     playerList.querySelectorAll('.player-name-input').forEach(input => {
         input.addEventListener('input', (e) => {
             setupPlayers[+e.target.dataset.index].name = e.target.value;
@@ -94,7 +141,6 @@ function renderSetupPlayers() {
         });
     });
 
-    // Avatar button listeners
     playerList.querySelectorAll('.player-avatar-btn').forEach(btn => {
         btn.addEventListener('click', (e) => {
             editingAvatarIndex = +e.currentTarget.dataset.index;
@@ -102,7 +148,6 @@ function renderSetupPlayers() {
         });
     });
 
-    // Remove button listeners
     playerList.querySelectorAll('.remove-player-btn').forEach(btn => {
         btn.addEventListener('click', (e) => {
             const idx = +e.currentTarget.dataset.index;
@@ -113,8 +158,6 @@ function renderSetupPlayers() {
     });
 
     addPlayerBtn.style.display = setupPlayers.length >= 8 ? 'none' : 'flex';
-
-    // Update handicap list if visible
     if (advancedOpen) renderHandicaps();
 }
 
@@ -172,6 +215,7 @@ function renderHandicaps() {
                 <button class="handicap-btn" data-index="${i}" data-dir="1">+</button>
             </div>
             <span class="handicap-effective">${effective}</span>
+            <button class="handicap-reset-btn ${p.handicap !== 0 ? 'visible' : ''}" data-index="${i}" title="Reset">✕</button>
         `;
         list.appendChild(entry);
     });
@@ -185,7 +229,21 @@ function renderHandicaps() {
             renderHandicaps();
         });
     });
+
+    list.querySelectorAll('.handicap-reset-btn').forEach(btn => {
+        btn.addEventListener('click', (e) => {
+            const idx = +e.currentTarget.dataset.index;
+            setupPlayers[idx].handicap = 0;
+            renderHandicaps();
+        });
+    });
 }
+
+// Clear all handicaps button
+$('#clear-handicaps-btn').addEventListener('click', () => {
+    setupPlayers.forEach(p => p.handicap = 0);
+    renderHandicaps();
+});
 
 // ==================== MODE SELECTION ====================
 $$('.mode-btn').forEach(btn => {
@@ -205,7 +263,6 @@ $$('.mode-btn').forEach(btn => {
     });
 });
 
-// Custom score input
 $('#custom-score-input').addEventListener('input', (e) => {
     const val = parseInt(e.target.value);
     if (val && val >= 2) {
@@ -214,12 +271,13 @@ $('#custom-score-input').addEventListener('input', (e) => {
     if (advancedOpen) renderHandicaps();
 });
 
-// Checkout selection
+// ==================== CHECKOUT SELECTION ====================
 $$('.checkout-btn').forEach(btn => {
     btn.addEventListener('click', () => {
         $$('.checkout-btn').forEach(b => b.classList.remove('active'));
         btn.classList.add('active');
         state.checkoutRule = btn.dataset.checkout;
+        $('#checkout-hint').textContent = CHECKOUT_DESCRIPTIONS[state.checkoutRule] || '';
     });
 });
 
@@ -227,7 +285,6 @@ $$('.checkout-btn').forEach(btn => {
 startGameBtn.addEventListener('click', startGame);
 
 function startGame() {
-    // Read custom score if needed
     const activeMode = document.querySelector('.mode-btn.active');
     if (activeMode && activeMode.dataset.score === 'custom') {
         const val = parseInt($('#custom-score-input').value);
@@ -254,12 +311,12 @@ function startGame() {
             dartsThrown: 0,
             finished: false,
             finishOrder: -1,
+            dartHits: [],
         };
     });
     state.currentPlayerIndex = 0;
     state.round = 1;
     state.darts = [];
-    state.currentMultiplier = 1;
     state.history = [];
     state.gameOver = false;
     state.winners = [];
@@ -273,6 +330,10 @@ function startGame() {
     switchScreen(gameScreen);
     renderPlayerCards();
     resetTurnInput();
+
+    requestAnimationFrame(() => {
+        resizeDartboard();
+    });
 }
 
 // ==================== AVATAR MODAL ====================
@@ -350,16 +411,12 @@ function renderPlayerCards() {
 
 function resetTurnInput() {
     state.darts = [];
-    state.currentMultiplier = 1;
-
-    $$('.mult-btn').forEach(b => b.classList.remove('active'));
-    $$('.mult-btn')[0].classList.add('active');
-
     updateDartTracker();
     updateScoreDisplay();
     updateSubmitButton();
     updateDartActionButtons();
     updateCurrentPlayerIndicator();
+    drawDartboard();
 }
 
 function updateCurrentPlayerIndicator() {
@@ -383,8 +440,9 @@ function updateDartTracker() {
     const dartScoresEl = $('#dart-scores');
     if (state.darts.length > 0) {
         dartScoresEl.textContent = state.darts.map(d => {
+            if (d.value === 0) return 'Miss';
             const prefix = d.multiplier === 3 ? 'T' : d.multiplier === 2 ? 'D' : '';
-            return d.value === 0 ? 'Miss' : `${prefix}${d.value}`;
+            return `${prefix}${d.value}`;
         }).join(' + ');
     } else {
         dartScoresEl.textContent = '';
@@ -416,42 +474,442 @@ function updateDartActionButtons() {
     clearRoundBtn.disabled = state.darts.length === 0;
 }
 
-// ==================== INPUT HANDLING ====================
+// ==================== DARTBOARD RENDERING ====================
 
-// Multiplier buttons
-$$('.mult-btn').forEach(btn => {
-    btn.addEventListener('click', () => {
-        $$('.mult-btn').forEach(b => b.classList.remove('active'));
-        btn.classList.add('active');
-        state.currentMultiplier = +btn.dataset.mult;
+function resizeDartboard() {
+    const container = dartboardContainer;
+    const rect = container.getBoundingClientRect();
+    const size = Math.min(rect.width - 4, rect.height - 4);
+    if (size <= 0) return;
+
+    boardDPR = window.devicePixelRatio || 1;
+    boardSize = size;
+    boardCenterX = size / 2;
+    boardCenterY = size / 2;
+    boardRadius = size * 0.42;
+
+    dartboardCanvas.style.width = size + 'px';
+    dartboardCanvas.style.height = size + 'px';
+    dartboardCanvas.width = Math.round(size * boardDPR);
+    dartboardCanvas.height = Math.round(size * boardDPR);
+
+    buildOffscreenBoard();
+    drawDartboard();
+}
+
+function buildOffscreenBoard() {
+    offscreenBoard = document.createElement('canvas');
+    offscreenBoard.width = dartboardCanvas.width;
+    offscreenBoard.height = dartboardCanvas.height;
+    const ctx = offscreenBoard.getContext('2d');
+    ctx.scale(boardDPR, boardDPR);
+    drawBoardGraphics(ctx, boardCenterX, boardCenterY, boardRadius);
+}
+
+function drawBoardGraphics(ctx, cx, cy, R) {
+    // Background
+    ctx.fillStyle = BOARD_COLORS.boardBg;
+    ctx.fillRect(0, 0, boardSize, boardSize);
+
+    const segAngle = Math.PI * 2 / 20;
+
+    // Draw segments from outside to inside
+    // Double ring
+    for (let i = 0; i < 20; i++) {
+        const startA = -Math.PI / 2 + i * segAngle - segAngle / 2;
+        const endA = startA + segAngle;
+        const color = (i % 2 === 0) ? BOARD_COLORS.redRing : BOARD_COLORS.greenRing;
+        drawSegment(ctx, cx, cy, R * RING.DOUBLE_INNER, R * RING.DOUBLE_OUTER, startA, endA, color);
+    }
+
+    // Outer single
+    for (let i = 0; i < 20; i++) {
+        const startA = -Math.PI / 2 + i * segAngle - segAngle / 2;
+        const endA = startA + segAngle;
+        const color = (i % 2 === 0) ? BOARD_COLORS.darkArea : BOARD_COLORS.lightArea;
+        drawSegment(ctx, cx, cy, R * RING.TRIPLE_OUTER, R * RING.DOUBLE_INNER, startA, endA, color);
+    }
+
+    // Triple ring
+    for (let i = 0; i < 20; i++) {
+        const startA = -Math.PI / 2 + i * segAngle - segAngle / 2;
+        const endA = startA + segAngle;
+        const color = (i % 2 === 0) ? BOARD_COLORS.redRing : BOARD_COLORS.greenRing;
+        drawSegment(ctx, cx, cy, R * RING.TRIPLE_INNER, R * RING.TRIPLE_OUTER, startA, endA, color);
+    }
+
+    // Inner single
+    for (let i = 0; i < 20; i++) {
+        const startA = -Math.PI / 2 + i * segAngle - segAngle / 2;
+        const endA = startA + segAngle;
+        const color = (i % 2 === 0) ? BOARD_COLORS.darkArea : BOARD_COLORS.lightArea;
+        drawSegment(ctx, cx, cy, R * RING.BULL_OUTER, R * RING.TRIPLE_INNER, startA, endA, color);
+    }
+
+    // Outer bull
+    ctx.beginPath();
+    ctx.arc(cx, cy, R * RING.BULL_OUTER, 0, Math.PI * 2);
+    ctx.fillStyle = BOARD_COLORS.greenBull;
+    ctx.fill();
+
+    // Inner bull
+    ctx.beginPath();
+    ctx.arc(cx, cy, R * RING.BULL_INNER, 0, Math.PI * 2);
+    ctx.fillStyle = BOARD_COLORS.redBull;
+    ctx.fill();
+
+    // Wire lines - ring boundaries
+    const wireRings = [RING.BULL_INNER, RING.BULL_OUTER, RING.TRIPLE_INNER, RING.TRIPLE_OUTER, RING.DOUBLE_INNER, RING.DOUBLE_OUTER];
+    wireRings.forEach(r => {
+        ctx.beginPath();
+        ctx.arc(cx, cy, R * r, 0, Math.PI * 2);
+        ctx.strokeStyle = BOARD_COLORS.wire;
+        ctx.lineWidth = 0.8;
+        ctx.stroke();
     });
+
+    // Wire lines - segment separators
+    for (let i = 0; i < 20; i++) {
+        const angle = -Math.PI / 2 + i * segAngle - segAngle / 2;
+        ctx.beginPath();
+        ctx.moveTo(cx + Math.cos(angle) * R * RING.BULL_OUTER, cy + Math.sin(angle) * R * RING.BULL_OUTER);
+        ctx.lineTo(cx + Math.cos(angle) * R * RING.DOUBLE_OUTER, cy + Math.sin(angle) * R * RING.DOUBLE_OUTER);
+        ctx.strokeStyle = BOARD_COLORS.wireThin;
+        ctx.lineWidth = 0.6;
+        ctx.stroke();
+    }
+
+    // Numbers
+    const numFontSize = Math.max(9, R * 0.11);
+    ctx.font = `bold ${numFontSize}px Orbitron, monospace`;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillStyle = BOARD_COLORS.numColor;
+
+    for (let i = 0; i < 20; i++) {
+        const angle = -Math.PI / 2 + i * segAngle;
+        const nr = R * RING.NUMBER_RING;
+        const x = cx + Math.cos(angle) * nr;
+        const y = cy + Math.sin(angle) * nr;
+        ctx.fillText(BOARD_ORDER[i], x, y);
+    }
+}
+
+function drawSegment(ctx, cx, cy, innerR, outerR, startAngle, endAngle, fillColor) {
+    ctx.beginPath();
+    ctx.arc(cx, cy, outerR, startAngle, endAngle);
+    ctx.arc(cx, cy, innerR, endAngle, startAngle, true);
+    ctx.closePath();
+    ctx.fillStyle = fillColor;
+    ctx.fill();
+}
+
+function drawDartboard(highlightSegIndex, highlightRing) {
+    if (!offscreenBoard) return;
+    const ctx = dartboardCanvas.getContext('2d');
+    ctx.setTransform(1, 0, 0, 1, 0, 0);
+    ctx.drawImage(offscreenBoard, 0, 0);
+
+    ctx.scale(boardDPR, boardDPR);
+
+    // Draw highlight
+    if (highlightSegIndex !== undefined && highlightSegIndex !== null) {
+        drawHighlight(ctx, boardCenterX, boardCenterY, boardRadius, highlightSegIndex, highlightRing);
+    }
+
+    // Draw current turn darts
+    drawTurnDarts(ctx, boardCenterX, boardCenterY, boardRadius);
+
+    ctx.setTransform(1, 0, 0, 1, 0, 0);
+}
+
+function drawHighlight(ctx, cx, cy, R, segIndex, ring) {
+    ctx.save();
+    ctx.globalAlpha = 0.35;
+    ctx.fillStyle = '#00e5ff';
+
+    const segAngle = Math.PI * 2 / 20;
+
+    if (ring === 'inner-bull') {
+        ctx.beginPath();
+        ctx.arc(cx, cy, R * RING.BULL_INNER, 0, Math.PI * 2);
+        ctx.fill();
+    } else if (ring === 'outer-bull') {
+        ctx.beginPath();
+        ctx.arc(cx, cy, R * RING.BULL_OUTER, 0, Math.PI * 2);
+        ctx.arc(cx, cy, R * RING.BULL_INNER, Math.PI * 2, 0, true);
+        ctx.fill();
+    } else if (ring === 'miss') {
+        // No highlight for miss
+    } else {
+        let innerR, outerR;
+        if (ring === 'inner-single') { innerR = RING.BULL_OUTER; outerR = RING.TRIPLE_INNER; }
+        else if (ring === 'triple') { innerR = RING.TRIPLE_INNER; outerR = RING.TRIPLE_OUTER; }
+        else if (ring === 'outer-single') { innerR = RING.TRIPLE_OUTER; outerR = RING.DOUBLE_INNER; }
+        else if (ring === 'double') { innerR = RING.DOUBLE_INNER; outerR = RING.DOUBLE_OUTER; }
+        else { ctx.restore(); return; }
+
+        const startA = -Math.PI / 2 + segIndex * segAngle - segAngle / 2;
+        const endA = startA + segAngle;
+        drawSegment(ctx, cx, cy, R * innerR, R * outerR, startA, endA, '#00e5ff');
+    }
+
+    ctx.restore();
+}
+
+function drawTurnDarts(ctx, cx, cy, R) {
+    state.darts.forEach(d => {
+        if (d.normX == null) return;
+        const x = cx + d.normX * R;
+        const y = cy + d.normY * R;
+
+        ctx.save();
+        ctx.shadowColor = '#00e5ff';
+        ctx.shadowBlur = 8;
+        ctx.beginPath();
+        ctx.arc(x, y, 4, 0, Math.PI * 2);
+        ctx.fillStyle = '#00e5ff';
+        ctx.fill();
+        ctx.shadowBlur = 0;
+        ctx.strokeStyle = '#ffffff';
+        ctx.lineWidth = 1.5;
+        ctx.stroke();
+        ctx.restore();
+    });
+}
+
+// ==================== HIT DETECTION ====================
+function getHitFromPosition(canvasX, canvasY) {
+    const dx = canvasX - boardCenterX;
+    const dy = canvasY - boardCenterY;
+    const dist = Math.sqrt(dx * dx + dy * dy);
+    const normDist = dist / boardRadius;
+
+    if (normDist > RING.DOUBLE_OUTER) {
+        return { value: 0, multiplier: 1, score: 0, ring: 'miss', segIndex: -1 };
+    }
+
+    if (normDist <= RING.BULL_INNER) {
+        return { value: 25, multiplier: 2, score: 50, ring: 'inner-bull', segIndex: -1 };
+    }
+
+    if (normDist <= RING.BULL_OUTER) {
+        return { value: 25, multiplier: 1, score: 25, ring: 'outer-bull', segIndex: -1 };
+    }
+
+    // Determine segment
+    let angle = Math.atan2(dy, dx);
+    angle += Math.PI / 2; // Shift so top = 0
+    angle += Math.PI / 20; // Offset by half-segment
+    while (angle < 0) angle += Math.PI * 2;
+    while (angle >= Math.PI * 2) angle -= Math.PI * 2;
+
+    const segIndex = Math.floor(angle / (Math.PI * 2 / 20)) % 20;
+    const value = BOARD_ORDER[segIndex];
+
+    let multiplier, ring;
+    if (normDist <= RING.TRIPLE_INNER) { multiplier = 1; ring = 'inner-single'; }
+    else if (normDist <= RING.TRIPLE_OUTER) { multiplier = 3; ring = 'triple'; }
+    else if (normDist <= RING.DOUBLE_INNER) { multiplier = 1; ring = 'outer-single'; }
+    else { multiplier = 2; ring = 'double'; }
+
+    return { value, multiplier, score: value * multiplier, ring, segIndex };
+}
+
+function getHitLabel(hit) {
+    if (!hit || hit.ring === 'miss') return 'MISS';
+    if (hit.ring === 'inner-bull') return 'BULL · 50';
+    if (hit.ring === 'outer-bull') return '25';
+    const prefix = hit.multiplier === 3 ? 'T' : hit.multiplier === 2 ? 'D' : '';
+    return `${prefix}${hit.value} · ${hit.score}`;
+}
+
+// ==================== DARTBOARD INTERACTION ====================
+function getCanvasPos(e) {
+    const rect = dartboardCanvas.getBoundingClientRect();
+    return {
+        x: e.clientX - rect.left,
+        y: e.clientY - rect.top,
+    };
+}
+
+dartboardCanvas.addEventListener('pointerdown', onBoardPointerDown);
+dartboardCanvas.addEventListener('pointermove', onBoardPointerMove);
+dartboardCanvas.addEventListener('pointerup', onBoardPointerUp);
+dartboardCanvas.addEventListener('pointercancel', onBoardPointerCancel);
+
+function onBoardPointerDown(e) {
+    if (state.darts.length >= 3 || state.gameOver) return;
+    e.preventDefault();
+    dartboardCanvas.setPointerCapture(e.pointerId);
+    boardActive = true;
+
+    const pos = getCanvasPos(e);
+    currentHit = getHitFromPosition(pos.x, pos.y);
+    drawDartboard(currentHit.segIndex, currentHit.ring);
+    showMagnifier(e, pos, currentHit);
+}
+
+function onBoardPointerMove(e) {
+    if (!boardActive) return;
+    e.preventDefault();
+
+    const pos = getCanvasPos(e);
+    currentHit = getHitFromPosition(pos.x, pos.y);
+    drawDartboard(currentHit.segIndex, currentHit.ring);
+    updateMagnifier(e, pos, currentHit);
+}
+
+function onBoardPointerUp(e) {
+    if (!boardActive) return;
+    e.preventDefault();
+    boardActive = false;
+    hideMagnifier();
+
+    const pos = getCanvasPos(e);
+    const hit = getHitFromPosition(pos.x, pos.y);
+    registerDart(hit, pos);
+}
+
+function onBoardPointerCancel(e) {
+    boardActive = false;
+    hideMagnifier();
+    currentHit = null;
+    drawDartboard();
+}
+
+function registerDart(hit, canvasPos) {
+    if (state.darts.length >= 3 || state.gameOver) return;
+
+    const normX = (canvasPos.x - boardCenterX) / boardRadius;
+    const normY = (canvasPos.y - boardCenterY) / boardRadius;
+
+    state.darts.push({
+        value: hit.value,
+        multiplier: hit.multiplier,
+        score: hit.score,
+        ring: hit.ring,
+        normX: hit.ring === 'miss' ? null : normX,
+        normY: hit.ring === 'miss' ? null : normY,
+    });
+
+    if (navigator.vibrate) navigator.vibrate(15);
+
+    updateDartTracker();
+    updateScoreDisplay();
+    updateSubmitButton();
+    updateDartActionButtons();
+    drawDartboard();
+
+    if (state.darts.length === 3) submitTurnBtn.focus();
+}
+
+// ==================== MISS BUTTON ====================
+missBtn.addEventListener('click', () => {
+    if (state.darts.length >= 3 || state.gameOver) return;
+    registerDart(
+        { value: 0, multiplier: 1, score: 0, ring: 'miss', segIndex: -1 },
+        { x: boardCenterX, y: boardCenterY }
+    );
 });
 
-// Number pad
-$$('.num-btn').forEach(btn => {
-    btn.addEventListener('click', () => {
-        if (state.darts.length >= 3 || state.gameOver) return;
+// ==================== MAGNIFIER ====================
+function showMagnifier(e, canvasPos, hit) {
+    magnifier.style.display = 'flex';
+    positionMagnifier(e);
+    drawMagnifierContent(canvasPos);
+    magnifierLabel.textContent = getHitLabel(hit);
+    magnifierLabel.style.color = hit.ring === 'miss' ? '#f87171' : '#00e5ff';
+}
 
-        const value = +btn.dataset.num;
-        let multiplier = state.currentMultiplier;
+function updateMagnifier(e, canvasPos, hit) {
+    positionMagnifier(e);
+    drawMagnifierContent(canvasPos);
+    magnifierLabel.textContent = getHitLabel(hit);
+    magnifierLabel.style.color = hit.ring === 'miss' ? '#f87171' : '#00e5ff';
+}
 
-        // Triple bull isn't possible, cap at double
-        if (value === 25 && multiplier === 3) multiplier = 2;
-        if (value === 0) multiplier = 1;
+function hideMagnifier() {
+    magnifier.style.display = 'none';
+    currentHit = null;
+    drawDartboard();
+}
 
-        const score = value * multiplier;
-        state.darts.push({ value, multiplier, score });
+function positionMagnifier(e) {
+    const containerRect = dartboardContainer.getBoundingClientRect();
+    const magWidth = 130;
+    const magHeight = 155;
+    const px = e.clientX - containerRect.left;
+    const py = e.clientY - containerRect.top;
 
-        if (navigator.vibrate) navigator.vibrate(15);
+    let left = px - magWidth / 2;
+    let top = py - magHeight - 30;
 
-        updateDartTracker();
-        updateScoreDisplay();
-        updateSubmitButton();
-        updateDartActionButtons();
+    if (top < -10) {
+        top = py + 40;
+    }
 
-        if (state.darts.length === 3) submitTurnBtn.focus();
-    });
-});
+    left = Math.max(-10, Math.min(containerRect.width - magWidth + 10, left));
+
+    magnifier.style.left = left + 'px';
+    magnifier.style.top = top + 'px';
+}
+
+function drawMagnifierContent(canvasPos) {
+    const magSize = 130;
+    const zoom = 2.5;
+    const sourceSize = magSize / zoom;
+
+    magnifierCanvas.width = Math.round(magSize * boardDPR);
+    magnifierCanvas.height = Math.round(magSize * boardDPR);
+    magnifierCanvas.style.width = magSize + 'px';
+    magnifierCanvas.style.height = magSize + 'px';
+
+    const magCtx = magnifierCanvas.getContext('2d');
+    const internalMagSize = magSize * boardDPR;
+    const center = internalMagSize / 2;
+
+    magCtx.clearRect(0, 0, internalMagSize, internalMagSize);
+
+    // Clip to circle
+    magCtx.save();
+    magCtx.beginPath();
+    magCtx.arc(center, center, center, 0, Math.PI * 2);
+    magCtx.clip();
+
+    // Source area from main canvas (in internal pixels)
+    const sourceR = (sourceSize / 2) * boardDPR;
+    const sx = canvasPos.x * boardDPR - sourceR;
+    const sy = canvasPos.y * boardDPR - sourceR;
+    const sSize = sourceR * 2;
+
+    magCtx.drawImage(dartboardCanvas, sx, sy, sSize, sSize, 0, 0, internalMagSize, internalMagSize);
+
+    // Crosshair
+    magCtx.strokeStyle = 'rgba(255,255,255,0.7)';
+    magCtx.lineWidth = 1.5 * boardDPR;
+    magCtx.beginPath();
+    magCtx.moveTo(center - 10 * boardDPR, center);
+    magCtx.lineTo(center + 10 * boardDPR, center);
+    magCtx.moveTo(center, center - 10 * boardDPR);
+    magCtx.lineTo(center, center + 10 * boardDPR);
+    magCtx.stroke();
+
+    // Center dot
+    magCtx.fillStyle = 'rgba(0, 229, 255, 0.9)';
+    magCtx.beginPath();
+    magCtx.arc(center, center, 2.5 * boardDPR, 0, Math.PI * 2);
+    magCtx.fill();
+
+    magCtx.restore();
+
+    // Border circle (outside clip)
+    magCtx.strokeStyle = '#00e5ff';
+    magCtx.lineWidth = 2.5 * boardDPR;
+    magCtx.beginPath();
+    magCtx.arc(center, center, center - 1.5 * boardDPR, 0, Math.PI * 2);
+    magCtx.stroke();
+}
 
 // ==================== UNDO DART ====================
 undoDartBtn.addEventListener('click', () => {
@@ -461,6 +919,7 @@ undoDartBtn.addEventListener('click', () => {
     updateScoreDisplay();
     updateSubmitButton();
     updateDartActionButtons();
+    drawDartboard();
 });
 
 // ==================== CLEAR ROUND ====================
@@ -471,6 +930,7 @@ clearRoundBtn.addEventListener('click', () => {
     updateScoreDisplay();
     updateSubmitButton();
     updateDartActionButtons();
+    drawDartboard();
 });
 
 // ==================== SUBMIT TURN ====================
@@ -486,6 +946,16 @@ function submitTurn() {
 
     const isBust = checkBust(newScore, state.darts);
 
+    // Track dart hits for hotspots
+    const hitsToAdd = state.darts.filter(d => d.normX != null).map(d => ({
+        normX: d.normX,
+        normY: d.normY,
+        value: d.value,
+        multiplier: d.multiplier,
+        score: d.score,
+        ring: d.ring,
+    }));
+
     // Save to history for undo
     state.history.push({
         playerIndex: state.currentPlayerIndex,
@@ -493,22 +963,24 @@ function submitTurn() {
         darts: [...state.darts],
         round: state.round,
         wasBust: isBust,
+        hitsAdded: hitsToAdd.length,
     });
 
     if (isBust) {
         bustAnimation();
         state.scoreHistory[state.currentPlayerIndex].push(scoreBeforeTurn);
+        // Still track dart hits even on bust
+        player.dartHits.push(...hitsToAdd);
     } else {
-        // Valid turn
         player.score = newScore;
         player.turns++;
         player.totalScored += turnTotal;
         player.dartsThrown += state.darts.length;
         if (turnTotal > player.highestTurn) player.highestTurn = turnTotal;
+        player.dartHits.push(...hitsToAdd);
 
         state.scoreHistory[state.currentPlayerIndex].push(newScore);
 
-        // Check win
         const won = checkWin(newScore);
         if (won && !player.finished) {
             player.finished = true;
@@ -518,7 +990,7 @@ function submitTurn() {
             renderPlayerCards();
             updateSeeResultsBtn();
             showWinnerBanner(state.currentPlayerIndex);
-            return; // Don't advance — banner handles it
+            return;
         }
     }
 
@@ -526,14 +998,14 @@ function submitTurn() {
 }
 
 function checkWin(newScore) {
-    if (state.checkoutRule === 'below-zero') {
-        return newScore < 0;
+    if (state.checkoutRule === 'zero-or-less') {
+        return newScore <= 0;
     }
     return newScore === 0;
 }
 
 function checkBust(newScore, darts) {
-    if (state.checkoutRule === 'below-zero') return false;
+    if (state.checkoutRule === 'zero-or-less') return false;
 
     if (state.checkoutRule === 'straight') {
         return newScore < 0;
@@ -567,7 +1039,6 @@ function advanceToNextPlayer() {
     const activePlayers = state.players.filter(p => !p.finished);
 
     if (activePlayers.length === 0) {
-        // Safety net — all finished
         state.gameOver = true;
         return;
     }
@@ -601,15 +1072,12 @@ function showWinnerBanner(playerIndex) {
     $('#banner-winner-avatar').textContent = player.avatar;
     $('#banner-winner-name').textContent = player.name;
 
-    // Determine if all players have finished
     const activePlayers = state.players.filter(p => !p.finished);
     const allFinished = activePlayers.length === 0;
 
-    // Show/hide buttons
     $('#banner-dismiss-btn').style.display = allFinished ? 'none' : 'inline-block';
     $('#banner-see-results-btn').style.display = 'inline-block';
 
-    // Mini confetti
     const confettiEl = $('#banner-confetti');
     confettiEl.innerHTML = '';
     const colors = ['#00e5ff', '#f87171', '#34d399', '#fbbf24', '#a78bfa', '#fb923c', '#f472b6'];
@@ -630,19 +1098,16 @@ function showWinnerBanner(playerIndex) {
     winnerBanner.style.display = 'flex';
 }
 
-// Continue Playing button
 $('#banner-dismiss-btn').addEventListener('click', () => {
     winnerBanner.style.display = 'none';
     advanceToNextPlayer();
 });
 
-// See Results button (from banner)
 $('#banner-see-results-btn').addEventListener('click', () => {
     winnerBanner.style.display = 'none';
     finishGame();
 });
 
-// See Results button (from header)
 seeResultsHeaderBtn.addEventListener('click', () => {
     finishGame();
 });
@@ -651,15 +1116,14 @@ seeResultsHeaderBtn.addEventListener('click', () => {
 $('#undo-btn').addEventListener('click', () => {
     if (state.history.length === 0) return;
 
-    // If on finish screen, go back to game
     if (finishScreen.classList.contains('active')) {
         switchScreen(gameScreen);
+        requestAnimationFrame(() => resizeDartboard());
     }
 
     const last = state.history.pop();
     const player = state.players[last.playerIndex];
 
-    // Un-finish player if this was their winning turn
     if (player.finished) {
         player.finished = false;
         player.finishOrder = -1;
@@ -667,15 +1131,17 @@ $('#undo-btn').addEventListener('click', () => {
         state.gameOver = false;
     }
 
-    // Revert score
     player.score = last.scoreBeforeTurn;
 
-    // Remove last score history entry
     if (state.scoreHistory[last.playerIndex].length > 1) {
         state.scoreHistory[last.playerIndex].pop();
     }
 
-    // Revert stats only if it wasn't a bust
+    // Remove dart hits
+    if (last.hitsAdded > 0) {
+        player.dartHits.splice(-last.hitsAdded);
+    }
+
     if (!last.wasBust) {
         const turnTotal = last.darts.reduce((sum, d) => sum + d.score, 0);
         player.turns = Math.max(0, player.turns - 1);
@@ -711,7 +1177,7 @@ function finishGame() {
 }
 
 function renderFinishScreen() {
-    const checkoutLabel = state.checkoutRule === 'below-zero' ? 'Below Zero' :
+    const checkoutLabel = state.checkoutRule === 'zero-or-less' ? 'Zero or Less' :
                           state.checkoutRule === 'straight' ? 'Straight Out' : 'Double Out';
     $('#finish-meta').textContent = `${state.startingScore} · ${checkoutLabel} · ${state.round} rounds`;
 
@@ -738,13 +1204,16 @@ function renderFinishScreen() {
                 <div class="lb-name">${p.name}</div>
                 <div class="lb-sub">${p.turns} turns · Avg ${avg}${p.startingScore !== state.startingScore ? ' · Start ' + p.startingScore : ''}</div>
             </div>
-            <div class="lb-score">${p.finished ? (state.checkoutRule === 'below-zero' ? p.score : '0') : p.score}</div>
+            <div class="lb-score">${p.finished ? (state.checkoutRule === 'zero-or-less' ? p.score : '0') : p.score}</div>
         `;
         lbEl.appendChild(card);
     });
 
     // ---- Chart ----
     drawScoreChart();
+
+    // ---- Hotspots ----
+    renderHotspots();
 
     // ---- Detailed stats ----
     const statsEl = $('#finish-detailed-stats');
@@ -790,6 +1259,195 @@ function renderFinishScreen() {
     });
 }
 
+// ==================== HOTSPOT VISUALIZATION ====================
+function renderHotspots() {
+    const carousel = $('#hotspot-carousel');
+    const dotsContainer = $('#hotspot-dots');
+    const section = $('#finish-hotspots-section');
+    carousel.innerHTML = '';
+    dotsContainer.innerHTML = '';
+
+    // Check if any player has dart hits
+    const hasHits = state.players.some(p => p.dartHits.length > 0);
+    if (!hasHits) {
+        section.style.display = 'none';
+        return;
+    }
+    section.style.display = '';
+
+    const hotspotSize = 220;
+    const dpr = window.devicePixelRatio || 1;
+
+    state.players.forEach((player, pIdx) => {
+        const slide = document.createElement('div');
+        slide.className = 'hotspot-slide';
+
+        slide.innerHTML = `
+            <div class="hotspot-player-info">
+                <span class="hotspot-avatar">${player.avatar}</span>
+                <span class="hotspot-name">${player.name}</span>
+                <span class="hotspot-dart-count">(${player.dartHits.length} darts)</span>
+            </div>
+            <div class="hotspot-canvas-wrap">
+                <canvas width="${hotspotSize * dpr}" height="${hotspotSize * dpr}"
+                        style="width:${hotspotSize}px;height:${hotspotSize}px;"></canvas>
+            </div>
+        `;
+        carousel.appendChild(slide);
+
+        const canvas = slide.querySelector('canvas');
+        const ctx = canvas.getContext('2d');
+        ctx.scale(dpr, dpr);
+
+        const hcx = hotspotSize / 2;
+        const hcy = hotspotSize / 2;
+        const hR = hotspotSize * 0.42;
+
+        // Draw mini dartboard (dimmed)
+        drawMiniBoard(ctx, hcx, hcy, hR, hotspotSize);
+
+        // Draw dart hits
+        drawHotspotDots(ctx, hcx, hcy, hR, player.dartHits, player.color);
+
+        // Dot indicator
+        const dot = document.createElement('button');
+        dot.className = 'hotspot-dot' + (pIdx === 0 ? ' active' : '');
+        dot.dataset.index = pIdx;
+        dot.addEventListener('click', () => {
+            const slideEl = carousel.children[pIdx];
+            slideEl.scrollIntoView({ behavior: 'smooth', inline: 'center' });
+        });
+        dotsContainer.appendChild(dot);
+    });
+
+    // Update dots on scroll
+    carousel.addEventListener('scroll', () => {
+        const scrollLeft = carousel.scrollLeft;
+        const slideWidth = carousel.children[0]?.offsetWidth || 1;
+        const activeIdx = Math.round(scrollLeft / slideWidth);
+        dotsContainer.querySelectorAll('.hotspot-dot').forEach((d, i) => {
+            d.classList.toggle('active', i === activeIdx);
+        });
+    });
+}
+
+function drawMiniBoard(ctx, cx, cy, R, size) {
+    ctx.fillStyle = '#0d1117';
+    ctx.fillRect(0, 0, size, size);
+
+    const segAngle = Math.PI * 2 / 20;
+
+    // Double ring
+    for (let i = 0; i < 20; i++) {
+        const startA = -Math.PI / 2 + i * segAngle - segAngle / 2;
+        const endA = startA + segAngle;
+        const color = (i % 2 === 0) ? 'rgba(217,60,71,0.35)' : 'rgba(45,138,78,0.35)';
+        drawSegment(ctx, cx, cy, R * RING.DOUBLE_INNER, R * RING.DOUBLE_OUTER, startA, endA, color);
+    }
+
+    // Outer single
+    for (let i = 0; i < 20; i++) {
+        const startA = -Math.PI / 2 + i * segAngle - segAngle / 2;
+        const endA = startA + segAngle;
+        const color = (i % 2 === 0) ? 'rgba(26,30,48,0.6)' : 'rgba(200,188,150,0.2)';
+        drawSegment(ctx, cx, cy, R * RING.TRIPLE_OUTER, R * RING.DOUBLE_INNER, startA, endA, color);
+    }
+
+    // Triple ring
+    for (let i = 0; i < 20; i++) {
+        const startA = -Math.PI / 2 + i * segAngle - segAngle / 2;
+        const endA = startA + segAngle;
+        const color = (i % 2 === 0) ? 'rgba(217,60,71,0.35)' : 'rgba(45,138,78,0.35)';
+        drawSegment(ctx, cx, cy, R * RING.TRIPLE_INNER, R * RING.TRIPLE_OUTER, startA, endA, color);
+    }
+
+    // Inner single
+    for (let i = 0; i < 20; i++) {
+        const startA = -Math.PI / 2 + i * segAngle - segAngle / 2;
+        const endA = startA + segAngle;
+        const color = (i % 2 === 0) ? 'rgba(26,30,48,0.6)' : 'rgba(200,188,150,0.2)';
+        drawSegment(ctx, cx, cy, R * RING.BULL_OUTER, R * RING.TRIPLE_INNER, startA, endA, color);
+    }
+
+    // Bulls
+    ctx.beginPath();
+    ctx.arc(cx, cy, R * RING.BULL_OUTER, 0, Math.PI * 2);
+    ctx.fillStyle = 'rgba(45,138,78,0.35)';
+    ctx.fill();
+
+    ctx.beginPath();
+    ctx.arc(cx, cy, R * RING.BULL_INNER, 0, Math.PI * 2);
+    ctx.fillStyle = 'rgba(217,60,71,0.35)';
+    ctx.fill();
+
+    // Wire lines (subtle)
+    const wireRings = [RING.BULL_INNER, RING.BULL_OUTER, RING.TRIPLE_INNER, RING.TRIPLE_OUTER, RING.DOUBLE_INNER, RING.DOUBLE_OUTER];
+    wireRings.forEach(r => {
+        ctx.beginPath();
+        ctx.arc(cx, cy, R * r, 0, Math.PI * 2);
+        ctx.strokeStyle = 'rgba(122,136,153,0.25)';
+        ctx.lineWidth = 0.5;
+        ctx.stroke();
+    });
+
+    for (let i = 0; i < 20; i++) {
+        const angle = -Math.PI / 2 + i * segAngle - segAngle / 2;
+        ctx.beginPath();
+        ctx.moveTo(cx + Math.cos(angle) * R * RING.BULL_OUTER, cy + Math.sin(angle) * R * RING.BULL_OUTER);
+        ctx.lineTo(cx + Math.cos(angle) * R * RING.DOUBLE_OUTER, cy + Math.sin(angle) * R * RING.DOUBLE_OUTER);
+        ctx.strokeStyle = 'rgba(122,136,153,0.2)';
+        ctx.lineWidth = 0.4;
+        ctx.stroke();
+    }
+
+    // Numbers (small)
+    const numFontSize = Math.max(7, R * 0.10);
+    ctx.font = `bold ${numFontSize}px Orbitron, monospace`;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillStyle = 'rgba(176,184,200,0.5)';
+
+    for (let i = 0; i < 20; i++) {
+        const angle = -Math.PI / 2 + i * segAngle;
+        const nr = R * RING.NUMBER_RING;
+        const x = cx + Math.cos(angle) * nr;
+        const y = cy + Math.sin(angle) * nr;
+        ctx.fillText(BOARD_ORDER[i], x, y);
+    }
+}
+
+function drawHotspotDots(ctx, cx, cy, R, hits, color) {
+    if (hits.length === 0) return;
+
+    hits.forEach(hit => {
+        const x = cx + hit.normX * R;
+        const y = cy + hit.normY * R;
+
+        // Glow
+        ctx.save();
+        ctx.shadowColor = color;
+        ctx.shadowBlur = 10;
+        ctx.globalAlpha = 0.6;
+        ctx.beginPath();
+        ctx.arc(x, y, 5, 0, Math.PI * 2);
+        ctx.fillStyle = color;
+        ctx.fill();
+        ctx.restore();
+
+        // Solid dot
+        ctx.save();
+        ctx.globalAlpha = 0.9;
+        ctx.beginPath();
+        ctx.arc(x, y, 3.5, 0, Math.PI * 2);
+        ctx.fillStyle = color;
+        ctx.fill();
+        ctx.strokeStyle = 'rgba(255,255,255,0.5)';
+        ctx.lineWidth = 0.8;
+        ctx.stroke();
+        ctx.restore();
+    });
+}
+
 // ==================== CHART (pure canvas) ====================
 function drawScoreChart() {
     const canvas = $('#score-chart');
@@ -826,11 +1484,9 @@ function drawScoreChart() {
     function toX(i) { return pad.left + i * xStep; }
     function toY(val) { return pad.top + chartH - ((val - minScore) / scoreRange) * chartH; }
 
-    // Background
     ctx.fillStyle = '#1a2234';
     ctx.fillRect(0, 0, W, H);
 
-    // Grid
     ctx.strokeStyle = '#2a3550';
     ctx.lineWidth = 0.5;
     const gridLines = 5;
@@ -848,7 +1504,6 @@ function drawScoreChart() {
         ctx.fillText(Math.round(val), pad.left - 5, y + 3);
     }
 
-    // Zero line
     if (minScore < 0) {
         const zeroY = toY(0);
         ctx.strokeStyle = 'rgba(248,113,113,0.4)';
@@ -861,7 +1516,6 @@ function drawScoreChart() {
         ctx.setLineDash([]);
     }
 
-    // X-axis labels
     ctx.fillStyle = '#5a6478';
     ctx.font = '9px Inter, sans-serif';
     ctx.textAlign = 'center';
@@ -870,7 +1524,6 @@ function drawScoreChart() {
         ctx.fillText(i, toX(i), H - pad.bottom + 14);
     }
 
-    // Player lines
     state.players.forEach((player, pIdx) => {
         const data = state.scoreHistory[pIdx];
         if (data.length < 2) return;
@@ -892,7 +1545,6 @@ function drawScoreChart() {
         ctx.stroke();
         ctx.shadowBlur = 0;
 
-        // Dots
         data.forEach((val, i) => {
             const x = toX(i);
             const y = toY(val);
@@ -903,7 +1555,6 @@ function drawScoreChart() {
         });
     });
 
-    // Legend
     const legendY = pad.top - 6;
     let legendX = pad.left;
     state.players.forEach((p) => {
@@ -950,7 +1601,14 @@ document.addEventListener('keydown', (e) => {
     }
 });
 
+// ==================== WINDOW RESIZE ====================
+window.addEventListener('resize', () => {
+    if (gameScreen.classList.contains('active')) {
+        resizeDartboard();
+    }
+});
+
 // ==================== INIT ====================
 renderSetupPlayers();
 state.startingScore = 301;
-state.checkoutRule = 'below-zero';
+state.checkoutRule = 'zero-or-less';

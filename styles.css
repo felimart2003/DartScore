@@ -1,6 +1,6 @@
 /* ============================================
    DARTSCORE - Premium Dart Scoring App
-   Phone-optimized · Handicaps · Advanced Settings
+   Dartboard UI · Hotspots · Handicaps
    ============================================ */
 
 :root {
@@ -114,6 +114,13 @@ body::before {
 .custom-score-input::-webkit-outer-spin-button { -webkit-appearance: none; margin: 0; }
 .custom-score-input[type=number] { -moz-appearance: textfield; appearance: textfield; }
 
+/* Checkout descriptions */
+.checkout-hint {
+    font-size: 0.68rem; color: var(--text-muted); margin-top: 8px; line-height: 1.4;
+    padding: 6px 10px; background: var(--bg-input); border-radius: var(--radius-sm);
+    border-left: 2px solid var(--accent);
+}
+
 /* Players */
 .players-section { margin-bottom: 14px; }
 .player-list { display: flex; flex-direction: column; gap: 8px; margin-bottom: 10px; }
@@ -211,6 +218,21 @@ body::before {
     font-size: 0.65rem; color: var(--text-muted); width: 38px; text-align: right;
     font-family: 'Orbitron', monospace;
 }
+.handicap-reset-btn {
+    width: 24px; height: 24px; border-radius: 4px; border: 1px solid transparent;
+    background: none; color: var(--text-muted); font-size: 0.7rem; cursor: pointer;
+    display: flex; align-items: center; justify-content: center; transition: all 0.2s;
+    flex-shrink: 0; opacity: 0.5;
+}
+.handicap-reset-btn:hover { border-color: var(--red); color: var(--red); opacity: 1; }
+.handicap-reset-btn.visible { opacity: 1; }
+
+.clear-handicaps-btn {
+    width: 100%; padding: 8px; border: 1px dashed var(--border); border-radius: var(--radius-sm);
+    background: transparent; color: var(--text-muted); font-size: 0.7rem; font-weight: 600;
+    cursor: pointer; transition: all 0.2s; font-family: 'Inter', sans-serif; margin-top: 8px;
+}
+.clear-handicaps-btn:hover { border-color: var(--red); color: var(--red); }
 
 /* Start button */
 .start-btn {
@@ -295,12 +317,12 @@ body::before {
 /* ============ INPUT SECTION ============ */
 .input-section {
     flex: 1; display: flex; flex-direction: column; background: var(--bg-secondary);
-    border-top: 1px solid var(--border); padding: 8px 10px;
-    padding-bottom: max(10px, var(--safe-bottom));
+    border-top: 1px solid var(--border); padding: 6px 10px;
+    padding-bottom: max(8px, var(--safe-bottom));
     border-radius: var(--radius-xl) var(--radius-xl) 0 0;
 }
 
-.score-display { display: flex; align-items: center; justify-content: space-between; margin-bottom: 6px; }
+.score-display { display: flex; align-items: center; justify-content: space-between; margin-bottom: 4px; }
 .current-player-indicator { display: flex; align-items: center; gap: 6px; }
 .indicator-avatar {
     width: 26px; height: 26px; border-radius: 50%; display: flex; align-items: center;
@@ -311,20 +333,9 @@ body::before {
     color: var(--accent); text-shadow: 0 0 15px var(--accent-glow); min-width: 70px; text-align: right;
 }
 
-/* Multiplier */
-.multiplier-row { display: flex; gap: 6px; margin-bottom: 6px; }
-.mult-btn {
-    flex: 1; padding: 7px; border: 1.5px solid var(--border); border-radius: var(--radius-sm);
-    background: var(--bg-card); color: var(--text-secondary); font-size: 0.75rem; font-weight: 600;
-    cursor: pointer; transition: all 0.2s; font-family: 'Inter', sans-serif;
-    min-height: 36px;
-}
-.mult-btn:hover { border-color: var(--accent); }
-.mult-btn.active { background: var(--accent-bg); border-color: var(--accent); color: var(--accent); }
-
 /* Dart tracker */
 .dart-tracker {
-    display: flex; align-items: center; gap: 6px; margin-bottom: 6px;
+    display: flex; align-items: center; gap: 6px; margin-bottom: 4px;
     padding: 5px 10px; background: var(--bg-card); border-radius: var(--radius-sm); border: 1px solid var(--border);
 }
 .dart-label { font-size: 0.63rem; color: var(--text-muted); text-transform: uppercase; letter-spacing: 1px; font-weight: 600; }
@@ -349,25 +360,44 @@ body::before {
 .dart-action-btn:not(:disabled):hover { border-color: var(--accent); color: var(--accent); }
 .clear-btn:not(:disabled):hover { border-color: var(--red); color: var(--red); }
 
-/* Numpad */
-.numpad { display: grid; grid-template-columns: repeat(5, 1fr); gap: 4px; margin-bottom: 6px; flex: 1; }
-.num-btn {
-    padding: 0; border: 1.5px solid var(--border); border-radius: var(--radius-sm);
-    background: var(--bg-card); color: var(--text-primary); font-family: 'Orbitron', monospace;
-    font-size: 0.85rem; font-weight: 700; cursor: pointer; transition: all 0.12s ease;
-    position: relative; overflow: hidden; min-height: 44px;
-    display: flex; align-items: center; justify-content: center;
+/* ============ DARTBOARD ============ */
+.dartboard-container {
+    position: relative; flex: 1; display: flex; justify-content: center; align-items: center;
+    min-height: 0; overflow: visible; padding: 2px 0;
 }
-.num-btn::after { content: ''; position: absolute; inset: 0; background: var(--accent); opacity: 0; transition: opacity 0.12s; }
-.num-btn:hover { border-color: var(--accent); color: var(--accent); }
-.num-btn:active { transform: scale(0.95); background: var(--accent-bg); }
-.num-btn:active::after { opacity: 0.05; }
 
-.bull-btn { background: var(--bg-card); border-color: var(--gold); color: var(--gold); grid-column: span 3; font-size: 0.78rem; }
-.bull-btn:hover { border-color: var(--gold); color: var(--gold); box-shadow: 0 0 10px rgba(251,191,36,0.2); }
-.miss-btn { border-color: var(--red); color: var(--red); grid-column: span 2; font-size: 0.78rem; }
-.miss-btn:hover { border-color: var(--red); color: var(--red); }
+#dartboard-canvas {
+    display: block; touch-action: none; -webkit-user-select: none; user-select: none;
+    -webkit-touch-callout: none; cursor: crosshair; border-radius: 50%;
+}
 
+/* Magnifier */
+.magnifier {
+    position: absolute; width: 130px; pointer-events: none; z-index: 20;
+    display: flex; flex-direction: column; align-items: center;
+}
+.magnifier canvas {
+    width: 130px; height: 130px; border-radius: 50%;
+    border: 2.5px solid var(--accent); box-shadow: 0 0 20px var(--accent-glow), 0 4px 20px rgba(0,0,0,0.6);
+}
+.magnifier-label {
+    font-family: 'Orbitron', monospace; font-size: 0.75rem; font-weight: 700;
+    color: var(--accent); margin-top: 4px; text-shadow: 0 0 8px var(--accent-glow);
+    white-space: nowrap; text-align: center;
+    background: rgba(10, 14, 23, 0.85); padding: 2px 8px; border-radius: 4px;
+}
+
+/* Miss button */
+.miss-board-btn {
+    width: 100%; padding: 8px; border: 1.5px solid var(--red); border-radius: var(--radius-sm);
+    background: var(--bg-card); color: var(--red); font-family: 'Orbitron', monospace;
+    font-size: 0.75rem; font-weight: 700; letter-spacing: 2px; cursor: pointer;
+    transition: all 0.2s; margin-bottom: 4px; min-height: 36px; flex-shrink: 0;
+}
+.miss-board-btn:hover { background: rgba(248, 113, 113, 0.1); }
+.miss-board-btn:active { transform: scale(0.98); }
+
+/* Submit button */
 .submit-btn {
     width: 100%; padding: 12px; border: none; border-radius: var(--radius-md);
     background: linear-gradient(135deg, var(--accent), var(--accent-dark));
@@ -399,7 +429,7 @@ body::before {
 .banner-btn {
     padding: 12px 24px; border: none; border-radius: var(--radius-md);
     font-family: 'Orbitron', monospace; font-size: 0.75rem; font-weight: 700;
-    letter-spacing: 1px; cursor: pointer; transition: all 0.2s; width: 100;
+    letter-spacing: 1px; cursor: pointer; transition: all 0.2s; width: 100%;
     min-height: 44px;
 }
 .banner-continue {
@@ -462,6 +492,38 @@ body::before {
     padding: 12px; overflow-x: auto;
 }
 #score-chart { width: 100%; height: auto; display: block; }
+
+/* ============ HOTSPOT SECTION ============ */
+.finish-hotspots-section { margin-bottom: 24px; }
+.hotspot-carousel {
+    display: flex; overflow-x: auto; scroll-snap-type: x mandatory;
+    scrollbar-width: none; -webkit-overflow-scrolling: touch;
+}
+.hotspot-carousel::-webkit-scrollbar { display: none; }
+.hotspot-slide {
+    flex: 0 0 100%; scroll-snap-align: center; display: flex; flex-direction: column;
+    align-items: center; padding: 8px 12px;
+}
+.hotspot-player-info {
+    display: flex; align-items: center; gap: 8px; margin-bottom: 10px;
+}
+.hotspot-avatar { font-size: 1.2rem; }
+.hotspot-name { font-size: 0.85rem; font-weight: 600; }
+.hotspot-dart-count { font-size: 0.65rem; color: var(--text-muted); margin-left: 4px; }
+.hotspot-canvas-wrap {
+    background: var(--bg-card); border: 1px solid var(--border); border-radius: var(--radius-lg);
+    padding: 12px; display: inline-block;
+}
+.hotspot-canvas-wrap canvas { display: block; border-radius: 50%; }
+
+.hotspot-dots {
+    display: flex; gap: 8px; justify-content: center; margin-top: 12px;
+}
+.hotspot-dot {
+    width: 8px; height: 8px; border-radius: 50%; background: var(--border);
+    transition: all 0.3s; cursor: pointer; border: none;
+}
+.hotspot-dot.active { background: var(--accent); box-shadow: 0 0 8px var(--accent-glow); }
 
 /* Detailed stats */
 .finish-detailed-stats { display: flex; flex-direction: column; gap: 10px; margin-bottom: 24px; }
@@ -565,8 +627,6 @@ body::before {
 /* ============ RESPONSIVE ============ */
 @media (max-width: 380px) {
     .setup-card { padding: 16px 12px; }
-    .numpad { gap: 3px; }
-    .num-btn { font-size: 0.75rem; min-height: 40px; }
     .card-score { font-size: 1.2rem; }
     .player-card { min-width: 90px; padding: 8px 6px; }
     .checkout-modes { flex-wrap: wrap; }
@@ -576,8 +636,7 @@ body::before {
 }
 
 @media (min-width: 768px) {
-    .numpad { max-width: 420px; margin: 0 auto 8px; }
-    .input-section { padding: 12px 32px 20px; }
+    .input-section { padding: 10px 32px 16px; }
     .players-container { justify-content: center; padding: 12px 20px; }
     .player-card { min-width: 130px; }
 }
@@ -592,13 +651,10 @@ body::before {
     .card-avatar { width: 28px; height: 28px; font-size: 0.9rem; margin-bottom: 2px; }
     .card-score { font-size: 1.1rem; margin-bottom: 2px; }
     .card-name { font-size: 0.6rem; margin-bottom: 1px; }
-    .input-section { padding-top: 4px; }
-    .score-display { margin-bottom: 3px; }
-    .multiplier-row { margin-bottom: 3px; }
-    .dart-tracker { margin-bottom: 3px; padding: 3px 8px; }
-    .numpad { gap: 2px; margin-bottom: 3px; }
-    .num-btn { min-height: 34px; font-size: 0.78rem; }
+    .input-section { padding-top: 3px; }
+    .score-display { margin-bottom: 2px; }
+    .dart-tracker { margin-bottom: 2px; padding: 3px 8px; }
     .submit-btn { padding: 8px; min-height: 36px; font-size: 0.78rem; }
+    .miss-board-btn { padding: 5px; min-height: 30px; font-size: 0.68rem; }
     .score-input-display { font-size: 1.4rem; }
-    .mult-btn { padding: 5px; min-height: 30px; font-size: 0.7rem; }
 }
