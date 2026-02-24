@@ -1,0 +1,239 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <title>DartScore - Track Your Game</title>
+    <link rel="stylesheet" href="styles.css">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+</head>
+<body>
+
+<!-- ==================== SETUP SCREEN ==================== -->
+<div id="setup-screen" class="screen active">
+    <div class="setup-container">
+        <div class="logo-area">
+            <div class="dartboard-icon">
+                <svg viewBox="0 0 120 120" width="90" height="90">
+                    <circle cx="60" cy="60" r="56" fill="none" stroke="var(--accent)" stroke-width="2" opacity="0.3"/>
+                    <circle cx="60" cy="60" r="44" fill="none" stroke="var(--accent)" stroke-width="1.5" opacity="0.25"/>
+                    <circle cx="60" cy="60" r="32" fill="none" stroke="var(--accent)" stroke-width="1.5" opacity="0.3"/>
+                    <circle cx="60" cy="60" r="20" fill="none" stroke="var(--accent)" stroke-width="1.5" opacity="0.35"/>
+                    <circle cx="60" cy="60" r="8" fill="var(--accent)" opacity="0.6"/>
+                    <circle cx="60" cy="60" r="3" fill="var(--accent)"/>
+                    <line x1="60" y1="4" x2="60" y2="116" stroke="var(--accent)" stroke-width="0.5" opacity="0.15"/>
+                    <line x1="4" y1="60" x2="116" y2="60" stroke="var(--accent)" stroke-width="0.5" opacity="0.15"/>
+                </svg>
+            </div>
+            <h1 class="app-title">DART<span>SCORE</span></h1>
+            <p class="app-subtitle">Precision Scoring System</p>
+        </div>
+
+        <div class="setup-card">
+            <h2>Game Setup</h2>
+            
+            <div class="game-mode-section">
+                <label class="section-label">Starting Score</label>
+                <div class="mode-buttons">
+                    <button class="mode-btn active" data-score="301">301</button>
+                    <button class="mode-btn" data-score="501">501</button>
+                    <button class="mode-btn" data-score="701">701</button>
+                </div>
+            </div>
+
+            <div class="checkout-section">
+                <label class="section-label">Checkout Rule</label>
+                <div class="mode-buttons">
+                    <button class="checkout-btn active" data-checkout="double">Double Out</button>
+                    <button class="checkout-btn" data-checkout="straight">Straight Out</button>
+                </div>
+            </div>
+
+            <div class="players-section">
+                <label class="section-label">Players</label>
+                <div id="player-list" class="player-list">
+                    <!-- Players added dynamically -->
+                </div>
+                <button id="add-player-btn" class="add-player-btn">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+                    Add Player
+                </button>
+            </div>
+
+            <button id="start-game-btn" class="start-btn">
+                <span>Start Game</span>
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
+            </button>
+        </div>
+    </div>
+</div>
+
+<!-- ==================== GAME SCREEN ==================== -->
+<div id="game-screen" class="screen">
+    <header class="game-header">
+        <button id="back-btn" class="icon-btn" title="Back to setup">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M19 12H5M12 19l-7-7 7-7"/></svg>
+        </button>
+        <div class="header-info">
+            <span class="game-mode-label" id="game-mode-label">501</span>
+            <span class="round-label">Round <span id="round-num">1</span></span>
+        </div>
+        <button id="undo-btn" class="icon-btn" title="Undo last score">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M3 10h10a5 5 0 0 1 0 10H9"/><path d="M3 10l4-4M3 10l4 4"/></svg>
+        </button>
+    </header>
+
+    <div id="players-container" class="players-container">
+        <!-- Player cards generated dynamically -->
+    </div>
+
+    <div class="input-section">
+        <div class="score-display">
+            <div class="current-player-indicator">
+                <div class="indicator-avatar" id="current-avatar"></div>
+                <span id="current-player-name">Player 1</span>
+            </div>
+            <div class="score-input-display" id="score-display">0</div>
+        </div>
+
+        <div class="multiplier-row">
+            <button class="mult-btn active" data-mult="1">Single</button>
+            <button class="mult-btn" data-mult="2">Double</button>
+            <button class="mult-btn" data-mult="3">Triple</button>
+        </div>
+
+        <div class="dart-tracker">
+            <span class="dart-label">Darts:</span>
+            <div class="dart-dots">
+                <span class="dart-dot" id="dart-1"></span>
+                <span class="dart-dot" id="dart-2"></span>
+                <span class="dart-dot" id="dart-3"></span>
+            </div>
+            <div class="dart-scores" id="dart-scores"></div>
+        </div>
+
+        <div class="numpad">
+            <button class="num-btn" data-num="1">1</button>
+            <button class="num-btn" data-num="2">2</button>
+            <button class="num-btn" data-num="3">3</button>
+            <button class="num-btn" data-num="4">4</button>
+            <button class="num-btn" data-num="5">5</button>
+            <button class="num-btn" data-num="6">6</button>
+            <button class="num-btn" data-num="7">7</button>
+            <button class="num-btn" data-num="8">8</button>
+            <button class="num-btn" data-num="9">9</button>
+            <button class="num-btn" data-num="10">10</button>
+            <button class="num-btn" data-num="11">11</button>
+            <button class="num-btn" data-num="12">12</button>
+            <button class="num-btn" data-num="13">13</button>
+            <button class="num-btn" data-num="14">14</button>
+            <button class="num-btn" data-num="15">15</button>
+            <button class="num-btn" data-num="16">16</button>
+            <button class="num-btn" data-num="17">17</button>
+            <button class="num-btn" data-num="18">18</button>
+            <button class="num-btn" data-num="19">19</button>
+            <button class="num-btn" data-num="20">20</button>
+            <button class="num-btn bull-btn" data-num="25">BULL</button>
+            <button class="num-btn miss-btn" data-num="0">MISS</button>
+        </div>
+
+        <button id="submit-turn-btn" class="submit-btn" disabled>
+            Submit Turn
+        </button>
+    </div>
+</div>
+
+<!-- ==================== WINNER SCREEN ==================== -->
+<div id="winner-screen" class="screen">
+    <div class="winner-container">
+        <div class="confetti-canvas" id="confetti-canvas"></div>
+        <div class="trophy">
+            <svg viewBox="0 0 100 100" width="100" height="100">
+                <path d="M30 25h40v10c0 15-8 28-20 32-12-4-20-17-20-32V25z" fill="var(--gold)" stroke="var(--gold-dark)" stroke-width="2"/>
+                <path d="M30 30H18c0 12 5 20 12 22" fill="none" stroke="var(--gold)" stroke-width="3" stroke-linecap="round"/>
+                <path d="M70 30h12c0 12-5 20-12 22" fill="none" stroke="var(--gold)" stroke-width="3" stroke-linecap="round"/>
+                <rect x="42" y="67" width="16" height="8" rx="2" fill="var(--gold-dark)"/>
+                <rect x="35" y="75" width="30" height="6" rx="3" fill="var(--gold)"/>
+            </svg>
+        </div>
+        <h2 class="winner-title">Winner!</h2>
+        <div class="winner-avatar" id="winner-avatar"></div>
+        <h3 class="winner-name" id="winner-name">Player 1</h3>
+        <div class="winner-stats" id="winner-stats"></div>
+        <div class="winner-actions">
+            <button id="rematch-btn" class="action-btn primary-action">Rematch</button>
+            <button id="new-game-btn" class="action-btn secondary-action">New Game</button>
+        </div>
+    </div>
+</div>
+
+<!-- ==================== RULES MODAL ==================== -->
+<div id="rules-modal" class="modal-overlay">
+    <div class="modal-content rules-modal-content">
+        <button class="modal-close" id="close-rules">
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+        </button>
+        <h2>How to Play Darts</h2>
+        <div class="rules-body">
+            <div class="rule-section">
+                <h3>🎯 Objective</h3>
+                <p>Be the first player to reduce your score from the starting number (301, 501, or 701) to exactly <strong>zero</strong>.</p>
+            </div>
+            <div class="rule-section">
+                <h3>🎪 The Dartboard</h3>
+                <p>The board has numbers <strong>1–20</strong>, each with single, double (outer ring), and triple (inner ring) areas. The center has the <strong>Bullseye (50)</strong> and <strong>Outer Bull (25)</strong>.</p>
+            </div>
+            <div class="rule-section">
+                <h3>📋 Gameplay</h3>
+                <ul>
+                    <li>Each player throws <strong>3 darts</strong> per turn.</li>
+                    <li>The score of each dart is subtracted from your remaining total.</li>
+                    <li><strong>Single:</strong> Face value (1–20)</li>
+                    <li><strong>Double:</strong> 2× the number</li>
+                    <li><strong>Triple:</strong> 3× the number</li>
+                    <li><strong>Bullseye:</strong> 25 (outer) or 50 (double bull)</li>
+                </ul>
+            </div>
+            <div class="rule-section">
+                <h3>🏁 Finishing (Checkout)</h3>
+                <p><strong>Double Out:</strong> Your final dart must land on a double segment (or double bull) to win. If you go below zero or to exactly 1, your turn is "bust" and your score resets to what it was at the start of the turn.</p>
+                <p><strong>Straight Out:</strong> You can finish on any segment as long as you reach exactly zero.</p>
+            </div>
+            <div class="rule-section">
+                <h3>💥 Bust Rule</h3>
+                <p>If your subtracted score goes <strong>below zero</strong>, or leaves you on <strong>1 with Double Out</strong> (since no double = 1), your entire turn is void and the score reverts to the start of that turn.</p>
+            </div>
+            <div class="rule-section">
+                <h3>💡 Tips</h3>
+                <ul>
+                    <li>The highest single-dart score is <strong>Triple 20 = 60</strong>.</li>
+                    <li>The highest 3-dart score is <strong>180</strong> (three triple 20s).</li>
+                    <li>Plan your checkout route as you approach zero!</li>
+                </ul>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- ==================== AVATAR PICKER MODAL ==================== -->
+<div id="avatar-modal" class="modal-overlay">
+    <div class="modal-content avatar-modal-content">
+        <button class="modal-close" id="close-avatar">
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+        </button>
+        <h2>Choose Avatar</h2>
+        <div class="avatar-grid" id="avatar-grid">
+            <!-- Avatars generated by JS -->
+        </div>
+    </div>
+</div>
+
+<!-- ==================== HELP BUTTON (always visible) ==================== -->
+<button id="help-btn" class="help-fab" title="Rules of Darts">
+    <span>?</span>
+</button>
+
+<script src="app.js"></script>
+</body>
+</html>
