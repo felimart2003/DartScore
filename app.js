@@ -21,51 +21,52 @@ const PLAYER_COLORS = [
 // ==================== STATE ====================
 let state = {
     startingScore: 301,
-    checkoutRule: 'below-zero',   // 'below-zero' | 'straight' | 'double'
+    checkoutRule: 'below-zero',
     players: [],
     currentPlayerIndex: 0,
     round: 1,
-    darts: [],                     // current turn darts: [{value, multiplier, score}]
+    darts: [],
     currentMultiplier: 1,
-    history: [],                   // undo stack: [{playerIndex, scoreBeforeTurn, darts, round, wasBust}]
+    history: [],
     gameOver: false,
-    winners: [],                   // indices of players who have finished (in order)
-    scoreHistory: [],              // per-player score after each turn: [[score, score, ...], ...]
+    winners: [],
+    scoreHistory: [],
 };
 
 // ==================== DOM REFS ====================
 const $ = (sel) => document.querySelector(sel);
 const $$ = (sel) => document.querySelectorAll(sel);
 
-const setupScreen   = $('#setup-screen');
-const gameScreen     = $('#game-screen');
-const finishScreen   = $('#finish-screen');
-const playerList     = $('#player-list');
-const addPlayerBtn   = $('#add-player-btn');
-const startGameBtn   = $('#start-game-btn');
-const playersContainer = $('#players-container');
-const scoreDisplay   = $('#score-display');
+const setupScreen       = $('#setup-screen');
+const gameScreen        = $('#game-screen');
+const finishScreen      = $('#finish-screen');
+const playerList        = $('#player-list');
+const addPlayerBtn      = $('#add-player-btn');
+const startGameBtn      = $('#start-game-btn');
+const playersContainer  = $('#players-container');
+const scoreDisplay      = $('#score-display');
 const currentPlayerName = $('#current-player-name');
-const currentAvatar  = $('#current-avatar');
-const submitTurnBtn  = $('#submit-turn-btn');
-const roundNum       = $('#round-num');
-const gameModeLabel  = $('#game-mode-label');
-const helpBtn        = $('#help-btn');
-const rulesModal     = $('#rules-modal');
-const avatarModal    = $('#avatar-modal');
-const avatarGrid     = $('#avatar-grid');
-const undoDartBtn    = $('#undo-dart-btn');
-const clearRoundBtn  = $('#clear-round-btn');
-const winnerBanner   = $('#winner-banner');
+const currentAvatar     = $('#current-avatar');
+const submitTurnBtn     = $('#submit-turn-btn');
+const roundNum          = $('#round-num');
+const gameModeLabel     = $('#game-mode-label');
+const helpBtn           = $('#help-btn');
+const rulesModal        = $('#rules-modal');
+const avatarModal       = $('#avatar-modal');
+const avatarGrid        = $('#avatar-grid');
+const undoDartBtn       = $('#undo-dart-btn');
+const clearRoundBtn     = $('#clear-round-btn');
+const winnerBanner      = $('#winner-banner');
+const seeResultsHeaderBtn = $('#see-results-header-btn');
 
-// ==================== SETUP ====================
-
+// ==================== SETUP PLAYERS ====================
 let setupPlayers = [
-    { name: '', avatar: '🎯', color: PLAYER_COLORS[0] },
-    { name: '', avatar: '🏹', color: PLAYER_COLORS[1] },
+    { name: '', avatar: '🎯', color: PLAYER_COLORS[0], handicap: 0 },
+    { name: '', avatar: '🏹', color: PLAYER_COLORS[1], handicap: 0 },
 ];
 
 let editingAvatarIndex = null;
+let advancedOpen = false;
 
 function renderSetupPlayers() {
     playerList.innerHTML = '';
@@ -74,7 +75,7 @@ function renderSetupPlayers() {
         div.className = 'player-entry';
         div.innerHTML = `
             <button class="player-avatar-btn" data-index="${i}" title="Choose avatar">${p.avatar}</button>
-            <input class="player-name-input" type="text" placeholder="Player ${i + 1}" 
+            <input class="player-name-input" type="text" placeholder="Player ${i + 1}"
                    value="${p.name}" data-index="${i}" maxlength="16" autocomplete="off">
             <div class="player-color-dot" style="background:${p.color}"></div>
             ${setupPlayers.length > 1 ? `
@@ -89,6 +90,7 @@ function renderSetupPlayers() {
     playerList.querySelectorAll('.player-name-input').forEach(input => {
         input.addEventListener('input', (e) => {
             setupPlayers[+e.target.dataset.index].name = e.target.value;
+            if (advancedOpen) renderHandicaps();
         });
     });
 
@@ -105,13 +107,15 @@ function renderSetupPlayers() {
         btn.addEventListener('click', (e) => {
             const idx = +e.currentTarget.dataset.index;
             setupPlayers.splice(idx, 1);
-            // Reassign colors
             setupPlayers.forEach((p, i) => p.color = PLAYER_COLORS[i % PLAYER_COLORS.length]);
             renderSetupPlayers();
         });
     });
 
     addPlayerBtn.style.display = setupPlayers.length >= 8 ? 'none' : 'flex';
+
+    // Update handicap list if visible
+    if (advancedOpen) renderHandicaps();
 }
 
 addPlayerBtn.addEventListener('click', () => {
@@ -123,9 +127,65 @@ addPlayerBtn.addEventListener('click', () => {
         name: '',
         avatar: nextAvatar,
         color: PLAYER_COLORS[idx % PLAYER_COLORS.length],
+        handicap: 0,
     });
     renderSetupPlayers();
 });
+
+// ==================== ADVANCED SETTINGS TOGGLE ====================
+const toggleAdvancedBtn = $('#toggle-advanced-btn');
+const advancedSettings = $('#advanced-settings');
+
+toggleAdvancedBtn.addEventListener('click', () => {
+    advancedOpen = !advancedOpen;
+    toggleAdvancedBtn.classList.toggle('open', advancedOpen);
+    advancedSettings.classList.toggle('open', advancedOpen);
+    if (advancedOpen) renderHandicaps();
+});
+
+// ==================== HANDICAPS ====================
+function getBaseScore() {
+    const activeMode = document.querySelector('.mode-btn.active');
+    if (activeMode && activeMode.dataset.score === 'custom') {
+        const val = parseInt($('#custom-score-input').value);
+        return (val && val >= 2) ? val : state.startingScore;
+    }
+    return state.startingScore;
+}
+
+function renderHandicaps() {
+    const list = $('#handicap-list');
+    list.innerHTML = '';
+    const baseScore = getBaseScore();
+
+    setupPlayers.forEach((p, i) => {
+        const name = p.name || `Player ${i + 1}`;
+        const effective = baseScore + p.handicap;
+        const entry = document.createElement('div');
+        entry.className = 'handicap-entry';
+        entry.innerHTML = `
+            <span class="handicap-avatar">${p.avatar}</span>
+            <span class="handicap-name">${name}</span>
+            <div class="handicap-controls">
+                <button class="handicap-btn" data-index="${i}" data-dir="-1">−</button>
+                <span class="handicap-value ${p.handicap > 0 ? 'positive' : p.handicap < 0 ? 'negative' : ''}">${p.handicap > 0 ? '+' : ''}${p.handicap}</span>
+                <button class="handicap-btn" data-index="${i}" data-dir="1">+</button>
+            </div>
+            <span class="handicap-effective">${effective}</span>
+        `;
+        list.appendChild(entry);
+    });
+
+    list.querySelectorAll('.handicap-btn').forEach(btn => {
+        btn.addEventListener('click', (e) => {
+            const idx = +e.currentTarget.dataset.index;
+            const dir = +e.currentTarget.dataset.dir;
+            setupPlayers[idx].handicap += dir * 10;
+            setupPlayers[idx].handicap = Math.max(-9990, Math.min(9990, setupPlayers[idx].handicap));
+            renderHandicaps();
+        });
+    });
+}
 
 // ==================== MODE SELECTION ====================
 $$('.mode-btn').forEach(btn => {
@@ -141,6 +201,7 @@ $$('.mode-btn').forEach(btn => {
             customRow.style.display = 'none';
             state.startingScore = +btn.dataset.score;
         }
+        if (advancedOpen) renderHandicaps();
     });
 });
 
@@ -150,6 +211,7 @@ $('#custom-score-input').addEventListener('input', (e) => {
     if (val && val >= 2) {
         state.startingScore = val;
     }
+    if (advancedOpen) renderHandicaps();
 });
 
 // Checkout selection
@@ -178,18 +240,22 @@ function startGame() {
         state.startingScore = val;
     }
 
-    state.players = setupPlayers.map((p, i) => ({
-        name: p.name || `Player ${i + 1}`,
-        avatar: p.avatar,
-        color: p.color,
-        score: state.startingScore,
-        turns: 0,
-        totalScored: 0,
-        highestTurn: 0,
-        dartsThrown: 0,
-        finished: false,
-        finishOrder: -1,
-    }));
+    state.players = setupPlayers.map((p, i) => {
+        const playerStart = state.startingScore + p.handicap;
+        return {
+            name: p.name || `Player ${i + 1}`,
+            avatar: p.avatar,
+            color: p.color,
+            score: playerStart,
+            startingScore: playerStart,
+            turns: 0,
+            totalScored: 0,
+            highestTurn: 0,
+            dartsThrown: 0,
+            finished: false,
+            finishOrder: -1,
+        };
+    });
     state.currentPlayerIndex = 0;
     state.round = 1;
     state.darts = [];
@@ -197,12 +263,13 @@ function startGame() {
     state.history = [];
     state.gameOver = false;
     state.winners = [];
-    state.scoreHistory = state.players.map(() => [state.startingScore]);
+    state.scoreHistory = state.players.map(p => [p.startingScore]);
 
     gameModeLabel.textContent = state.startingScore;
     roundNum.textContent = '1';
 
     winnerBanner.style.display = 'none';
+    seeResultsHeaderBtn.style.display = 'none';
     switchScreen(gameScreen);
     renderPlayerCards();
     resetTurnInput();
@@ -368,6 +435,7 @@ $$('.num-btn').forEach(btn => {
         const value = +btn.dataset.num;
         let multiplier = state.currentMultiplier;
 
+        // Triple bull isn't possible, cap at double
         if (value === 25 && multiplier === 3) multiplier = 2;
         if (value === 0) multiplier = 1;
 
@@ -385,7 +453,7 @@ $$('.num-btn').forEach(btn => {
     });
 });
 
-// ==================== UNDO DART (undo single dart input) ====================
+// ==================== UNDO DART ====================
 undoDartBtn.addEventListener('click', () => {
     if (state.darts.length === 0) return;
     state.darts.pop();
@@ -395,7 +463,7 @@ undoDartBtn.addEventListener('click', () => {
     updateDartActionButtons();
 });
 
-// ==================== CLEAR ROUND (clear all darts in current input) ====================
+// ==================== CLEAR ROUND ====================
 clearRoundBtn.addEventListener('click', () => {
     if (state.darts.length === 0) return;
     state.darts = [];
@@ -416,7 +484,6 @@ function submitTurn() {
     const scoreBeforeTurn = player.score;
     const newScore = player.score - turnTotal;
 
-    // Determine bust status
     const isBust = checkBust(newScore, state.darts);
 
     // Save to history for undo
@@ -429,22 +496,19 @@ function submitTurn() {
     });
 
     if (isBust) {
-        // Bust — score reverts, don't update stats
         bustAnimation();
-        // Record same score in history (no change)
         state.scoreHistory[state.currentPlayerIndex].push(scoreBeforeTurn);
     } else {
-        // Valid turn — update score & stats
+        // Valid turn
         player.score = newScore;
         player.turns++;
         player.totalScored += turnTotal;
         player.dartsThrown += state.darts.length;
         if (turnTotal > player.highestTurn) player.highestTurn = turnTotal;
 
-        // Record new score
         state.scoreHistory[state.currentPlayerIndex].push(newScore);
 
-        // Check win condition
+        // Check win
         const won = checkWin(newScore);
         if (won && !player.finished) {
             player.finished = true;
@@ -452,9 +516,9 @@ function submitTurn() {
             state.winners.push(state.currentPlayerIndex);
 
             renderPlayerCards();
+            updateSeeResultsBtn();
             showWinnerBanner(state.currentPlayerIndex);
-            // Don't advance yet — banner dismiss will call advanceToNextPlayer
-            return;
+            return; // Don't advance — banner handles it
         }
     }
 
@@ -465,15 +529,11 @@ function checkWin(newScore) {
     if (state.checkoutRule === 'below-zero') {
         return newScore < 0;
     }
-    // straight and double: win at exactly 0 (bust logic already handled)
     return newScore === 0;
 }
 
 function checkBust(newScore, darts) {
-    if (state.checkoutRule === 'below-zero') {
-        // No bust in below-zero mode
-        return false;
-    }
+    if (state.checkoutRule === 'below-zero') return false;
 
     if (state.checkoutRule === 'straight') {
         return newScore < 0;
@@ -503,47 +563,36 @@ function bustAnimation() {
 }
 
 function advanceToNextPlayer() {
-    // Find next active (non-finished) player
     const totalPlayers = state.players.length;
+    const activePlayers = state.players.filter(p => !p.finished);
+
+    if (activePlayers.length === 0) {
+        // Safety net — all finished
+        state.gameOver = true;
+        return;
+    }
+
     let next = (state.currentPlayerIndex + 1) % totalPlayers;
     let attempts = 0;
-
     while (state.players[next].finished && attempts < totalPlayers) {
         next = (next + 1) % totalPlayers;
         attempts++;
     }
 
-    // Check if all players finished
-    const activePlayers = state.players.filter(p => !p.finished);
-    if (activePlayers.length === 0) {
-        // Everyone finished — auto finish game
-        finishGame();
-        return;
-    }
-
     state.currentPlayerIndex = next;
-
-    // Check if we've wrapped around for a new round
-    // Simple approach: track by round increments
-    if (next <= state.currentPlayerIndex || next === 0) {
-        // Only increment round when player 0 gets their turn (or the first non-finished player after 0)
-    }
-    // A cleaner round tracking: count how many full cycles
     recalcRound();
-
     renderPlayerCards();
     resetTurnInput();
 }
 
 function recalcRound() {
-    // Round = (total submitted turns across all players / number of players) + 1, roughly
-    // More accurate: count turns of the player with the most turns
-    const maxTurns = Math.max(...state.players.map(p => p.turns));
-    // If all busts are also counted in history, round correlates with history
-    // Simple: just use the history length
     const totalTurns = state.history.length;
     state.round = Math.floor(totalTurns / state.players.length) + 1;
     roundNum.textContent = state.round;
+}
+
+function updateSeeResultsBtn() {
+    seeResultsHeaderBtn.style.display = state.winners.length > 0 ? 'flex' : 'none';
 }
 
 // ==================== WINNER BANNER ====================
@@ -552,7 +601,15 @@ function showWinnerBanner(playerIndex) {
     $('#banner-winner-avatar').textContent = player.avatar;
     $('#banner-winner-name').textContent = player.name;
 
-    // Mini confetti in banner
+    // Determine if all players have finished
+    const activePlayers = state.players.filter(p => !p.finished);
+    const allFinished = activePlayers.length === 0;
+
+    // Show/hide buttons
+    $('#banner-dismiss-btn').style.display = allFinished ? 'none' : 'inline-block';
+    $('#banner-see-results-btn').style.display = 'inline-block';
+
+    // Mini confetti
     const confettiEl = $('#banner-confetti');
     confettiEl.innerHTML = '';
     const colors = ['#00e5ff', '#f87171', '#34d399', '#fbbf24', '#a78bfa', '#fb923c', '#f472b6'];
@@ -573,24 +630,28 @@ function showWinnerBanner(playerIndex) {
     winnerBanner.style.display = 'flex';
 }
 
+// Continue Playing button
 $('#banner-dismiss-btn').addEventListener('click', () => {
     winnerBanner.style.display = 'none';
-
-    // Check if all players finished
-    const activePlayers = state.players.filter(p => !p.finished);
-    if (activePlayers.length === 0) {
-        finishGame();
-        return;
-    }
-
     advanceToNextPlayer();
+});
+
+// See Results button (from banner)
+$('#banner-see-results-btn').addEventListener('click', () => {
+    winnerBanner.style.display = 'none';
+    finishGame();
+});
+
+// See Results button (from header)
+seeResultsHeaderBtn.addEventListener('click', () => {
+    finishGame();
 });
 
 // ==================== UNDO LAST SUBMITTED TURN ====================
 $('#undo-btn').addEventListener('click', () => {
     if (state.history.length === 0) return;
 
-    // If we're on the finish screen, go back to game
+    // If on finish screen, go back to game
     if (finishScreen.classList.contains('active')) {
         switchScreen(gameScreen);
     }
@@ -598,9 +659,8 @@ $('#undo-btn').addEventListener('click', () => {
     const last = state.history.pop();
     const player = state.players[last.playerIndex];
 
-    // If the player had finished and we're undoing that winning turn
+    // Un-finish player if this was their winning turn
     if (player.finished) {
-        // Check if the score history for that turn put them at win
         player.finished = false;
         player.finishOrder = -1;
         state.winners = state.winners.filter(w => w !== last.playerIndex);
@@ -610,12 +670,12 @@ $('#undo-btn').addEventListener('click', () => {
     // Revert score
     player.score = last.scoreBeforeTurn;
 
-    // Remove last score history entry for that player
+    // Remove last score history entry
     if (state.scoreHistory[last.playerIndex].length > 1) {
         state.scoreHistory[last.playerIndex].pop();
     }
 
-    // Revert stats only if it wasn't a bust (bust doesn't update stats)
+    // Revert stats only if it wasn't a bust
     if (!last.wasBust) {
         const turnTotal = last.darts.reduce((sum, d) => sum + d.score, 0);
         player.turns = Math.max(0, player.turns - 1);
@@ -627,6 +687,7 @@ $('#undo-btn').addEventListener('click', () => {
     recalcRound();
 
     winnerBanner.style.display = 'none';
+    updateSeeResultsBtn();
     renderPlayerCards();
     resetTurnInput();
 });
@@ -641,13 +702,6 @@ $('#back-btn').addEventListener('click', () => {
 });
 
 // ==================== FINISH GAME ====================
-$('#finish-game-btn').addEventListener('click', () => {
-    if (state.history.length === 0) {
-        if (!confirm('No turns played yet. Finish anyway?')) return;
-    }
-    finishGame();
-});
-
 function finishGame() {
     state.gameOver = true;
     winnerBanner.style.display = 'none';
@@ -662,13 +716,12 @@ function renderFinishScreen() {
     $('#finish-meta').textContent = `${state.startingScore} · ${checkoutLabel} · ${state.round} rounds`;
 
     // ---- Leaderboard ----
-    // Sort players: finished first (by finish order), then by lowest score
     const sorted = state.players.map((p, i) => ({ ...p, originalIndex: i }));
     sorted.sort((a, b) => {
         if (a.finished && b.finished) return a.finishOrder - b.finishOrder;
         if (a.finished && !b.finished) return -1;
         if (!a.finished && b.finished) return 1;
-        return a.score - b.score; // lower score = better
+        return a.score - b.score;
     });
 
     const lbEl = $('#finish-leaderboard');
@@ -683,7 +736,7 @@ function renderFinishScreen() {
             <div class="lb-avatar" style="border-color:${isWinner ? 'var(--gold)' : p.color}">${p.avatar}</div>
             <div class="lb-info">
                 <div class="lb-name">${p.name}</div>
-                <div class="lb-sub">${p.turns} turns · Avg ${avg}</div>
+                <div class="lb-sub">${p.turns} turns · Avg ${avg}${p.startingScore !== state.startingScore ? ' · Start ' + p.startingScore : ''}</div>
             </div>
             <div class="lb-score">${p.finished ? (state.checkoutRule === 'below-zero' ? p.score : '0') : p.score}</div>
         `;
@@ -693,7 +746,7 @@ function renderFinishScreen() {
     // ---- Chart ----
     drawScoreChart();
 
-    // ---- Detailed stats per player ----
+    // ---- Detailed stats ----
     const statsEl = $('#finish-detailed-stats');
     statsEl.innerHTML = '<h3 class="finish-section-title">Player Statistics</h3>';
     state.players.forEach((p, i) => {
@@ -725,11 +778,11 @@ function renderFinishScreen() {
                 </div>
                 <div class="psc-stat">
                     <div class="psc-stat-value">${p.dartsThrown}</div>
-                    <div class="psc-stat-label">Darts Thrown</div>
+                    <div class="psc-stat-label">Darts</div>
                 </div>
                 <div class="psc-stat">
                     <div class="psc-stat-value">${dartAvg}</div>
-                    <div class="psc-stat-label">Per Dart Avg</div>
+                    <div class="psc-stat-label">Per Dart</div>
                 </div>
             </div>
         `;
@@ -742,7 +795,6 @@ function drawScoreChart() {
     const canvas = $('#score-chart');
     const ctx = canvas.getContext('2d');
 
-    // Find max turns for x-axis
     const maxLen = Math.max(...state.scoreHistory.map(h => h.length));
     if (maxLen <= 1) {
         canvas.width = 0;
@@ -751,19 +803,19 @@ function drawScoreChart() {
     }
 
     const dpr = window.devicePixelRatio || 1;
-    const W = Math.max(maxLen * 60, 400);
-    const H = 280;
+    const containerWidth = canvas.parentElement.clientWidth - 24;
+    const W = Math.max(maxLen * 50, containerWidth, 300);
+    const H = 220;
     canvas.width = W * dpr;
     canvas.height = H * dpr;
     canvas.style.width = W + 'px';
     canvas.style.height = H + 'px';
     ctx.scale(dpr, dpr);
 
-    const pad = { top: 20, right: 20, bottom: 36, left: 50 };
+    const pad = { top: 20, right: 16, bottom: 30, left: 44 };
     const chartW = W - pad.left - pad.right;
     const chartH = H - pad.top - pad.bottom;
 
-    // Find value range
     const allScores = state.scoreHistory.flat();
     const minScore = Math.min(0, ...allScores);
     const maxScore = Math.max(...allScores);
@@ -778,7 +830,7 @@ function drawScoreChart() {
     ctx.fillStyle = '#1a2234';
     ctx.fillRect(0, 0, W, H);
 
-    // Grid lines
+    // Grid
     ctx.strokeStyle = '#2a3550';
     ctx.lineWidth = 0.5;
     const gridLines = 5;
@@ -790,14 +842,13 @@ function drawScoreChart() {
         ctx.lineTo(W - pad.right, y);
         ctx.stroke();
 
-        // Label
         ctx.fillStyle = '#5a6478';
-        ctx.font = '10px Inter, sans-serif';
+        ctx.font = '9px Inter, sans-serif';
         ctx.textAlign = 'right';
-        ctx.fillText(Math.round(val), pad.left - 6, y + 3);
+        ctx.fillText(Math.round(val), pad.left - 5, y + 3);
     }
 
-    // Zero line highlight
+    // Zero line
     if (minScore < 0) {
         const zeroY = toY(0);
         ctx.strokeStyle = 'rgba(248,113,113,0.4)';
@@ -812,27 +863,24 @@ function drawScoreChart() {
 
     // X-axis labels
     ctx.fillStyle = '#5a6478';
-    ctx.font = '10px Inter, sans-serif';
+    ctx.font = '9px Inter, sans-serif';
     ctx.textAlign = 'center';
     for (let i = 0; i < maxLen; i++) {
-        if (maxLen > 20 && i % Math.ceil(maxLen / 15) !== 0 && i !== maxLen - 1) continue;
-        ctx.fillText(i, toX(i), H - pad.bottom + 16);
+        if (maxLen > 20 && i % Math.ceil(maxLen / 12) !== 0 && i !== maxLen - 1) continue;
+        ctx.fillText(i, toX(i), H - pad.bottom + 14);
     }
-    ctx.fillText('Turn', W / 2, H - 4);
 
-    // Draw lines for each player
+    // Player lines
     state.players.forEach((player, pIdx) => {
         const data = state.scoreHistory[pIdx];
         if (data.length < 2) return;
 
         ctx.strokeStyle = player.color;
-        ctx.lineWidth = 2.5;
+        ctx.lineWidth = 2;
         ctx.lineJoin = 'round';
         ctx.lineCap = 'round';
-
-        // Glow effect
         ctx.shadowColor = player.color;
-        ctx.shadowBlur = 8;
+        ctx.shadowBlur = 6;
 
         ctx.beginPath();
         data.forEach((val, i) => {
@@ -842,7 +890,6 @@ function drawScoreChart() {
             else ctx.lineTo(x, y);
         });
         ctx.stroke();
-
         ctx.shadowBlur = 0;
 
         // Dots
@@ -851,7 +898,7 @@ function drawScoreChart() {
             const y = toY(val);
             ctx.fillStyle = player.color;
             ctx.beginPath();
-            ctx.arc(x, y, 3, 0, Math.PI * 2);
+            ctx.arc(x, y, 2.5, 0, Math.PI * 2);
             ctx.fill();
         });
     });
@@ -859,14 +906,14 @@ function drawScoreChart() {
     // Legend
     const legendY = pad.top - 6;
     let legendX = pad.left;
-    state.players.forEach((p, i) => {
+    state.players.forEach((p) => {
         ctx.fillStyle = p.color;
-        ctx.fillRect(legendX, legendY - 6, 10, 10);
+        ctx.fillRect(legendX, legendY - 5, 8, 8);
         ctx.fillStyle = '#8892a8';
-        ctx.font = '10px Inter, sans-serif';
+        ctx.font = '9px Inter, sans-serif';
         ctx.textAlign = 'left';
-        ctx.fillText(p.name, legendX + 14, legendY + 3);
-        legendX += ctx.measureText(p.name).width + 30;
+        ctx.fillText(p.name, legendX + 12, legendY + 2);
+        legendX += ctx.measureText(p.name).width + 26;
     });
 }
 

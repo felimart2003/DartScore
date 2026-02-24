@@ -2,8 +2,9 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>DartScore - Track Your Game</title>
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><circle cx='50' cy='50' r='48' fill='%23111827' stroke='%2300e5ff' stroke-width='3'/><circle cx='50' cy='50' r='36' fill='none' stroke='%2300e5ff' stroke-width='2' opacity='0.5'/><circle cx='50' cy='50' r='24' fill='none' stroke='%2300e5ff' stroke-width='2' opacity='0.4'/><circle cx='50' cy='50' r='12' fill='%2300e5ff' opacity='0.3'/><circle cx='50' cy='50' r='5' fill='%2300e5ff'/></svg>">
     <link rel="stylesheet" href="styles.css">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
@@ -15,7 +16,7 @@
     <div class="setup-container">
         <div class="logo-area">
             <div class="dartboard-icon">
-                <svg viewBox="0 0 120 120" width="90" height="90">
+                <svg viewBox="0 0 120 120" width="72" height="72">
                     <circle cx="60" cy="60" r="56" fill="none" stroke="var(--accent)" stroke-width="2" opacity="0.3"/>
                     <circle cx="60" cy="60" r="44" fill="none" stroke="var(--accent)" stroke-width="1.5" opacity="0.25"/>
                     <circle cx="60" cy="60" r="32" fill="none" stroke="var(--accent)" stroke-width="1.5" opacity="0.3"/>
@@ -32,7 +33,8 @@
 
         <div class="setup-card">
             <h2>Game Setup</h2>
-            
+
+            <!-- ---- SIMPLE SETTINGS ---- -->
             <div class="game-mode-section">
                 <label class="section-label">Starting Score</label>
                 <div class="mode-buttons">
@@ -42,29 +44,44 @@
                     <button class="mode-btn" data-score="custom" id="custom-score-btn">Custom</button>
                 </div>
                 <div class="custom-score-row" id="custom-score-row" style="display:none;">
-                    <input type="number" id="custom-score-input" class="custom-score-input" 
+                    <input type="number" id="custom-score-input" class="custom-score-input"
                            placeholder="Enter starting score..." min="2" max="99999" autocomplete="off">
-                </div>
-            </div>
-
-            <div class="checkout-section">
-                <label class="section-label">Checkout Rule</label>
-                <div class="mode-buttons checkout-modes">
-                    <button class="checkout-btn active" data-checkout="below-zero">Below Zero</button>
-                    <button class="checkout-btn" data-checkout="straight">Straight Out</button>
-                    <button class="checkout-btn" data-checkout="double">Double Out</button>
                 </div>
             </div>
 
             <div class="players-section">
                 <label class="section-label">Players</label>
-                <div id="player-list" class="player-list">
-                    <!-- Players added dynamically -->
-                </div>
+                <div id="player-list" class="player-list"></div>
                 <button id="add-player-btn" class="add-player-btn">
                     <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
                     Add Player
                 </button>
+            </div>
+
+            <!-- ---- ADVANCED SETTINGS TOGGLE ---- -->
+            <div class="advanced-toggle-wrapper">
+                <button id="toggle-advanced-btn" class="toggle-advanced-btn">
+                    <svg class="toggle-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"/><circle cx="12" cy="12" r="3"/></svg>
+                    <span>Advanced Settings</span>
+                    <svg class="toggle-chevron" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M6 9l6 6 6-6"/></svg>
+                </button>
+            </div>
+
+            <!-- ---- ADVANCED SETTINGS (collapsed) ---- -->
+            <div id="advanced-settings" class="advanced-settings">
+                <div class="checkout-section">
+                    <label class="section-label">Checkout Rule</label>
+                    <div class="mode-buttons checkout-modes">
+                        <button class="checkout-btn active" data-checkout="below-zero">Below Zero</button>
+                        <button class="checkout-btn" data-checkout="straight">Straight Out</button>
+                        <button class="checkout-btn" data-checkout="double">Double Out</button>
+                    </div>
+                </div>
+                <div class="handicap-section">
+                    <label class="section-label">Player Handicaps</label>
+                    <p class="handicap-hint">Adjust each player's starting score relative to the base</p>
+                    <div id="handicap-list" class="handicap-list"></div>
+                </div>
             </div>
 
             <button id="start-game-btn" class="start-btn">
@@ -86,18 +103,16 @@
             <span class="round-label">Round <span id="round-num">1</span></span>
         </div>
         <div class="header-actions">
-            <button id="undo-btn" class="icon-btn" title="Undo last submitted turn">
+            <button id="undo-btn" class="icon-btn" title="Undo last turn">
                 <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M3 10h10a5 5 0 0 1 0 10H9"/><path d="M3 10l4-4M3 10l4 4"/></svg>
             </button>
-            <button id="finish-game-btn" class="icon-btn finish-btn-icon" title="Finish Game">
+            <button id="see-results-header-btn" class="icon-btn see-results-icon" title="See Results" style="display:none;">
                 <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M4 15s1-1 4-1 5 2 8 2 4-1 4-1V3s-1 1-4 1-5-2-8-2-4 1-4 1z"/><line x1="4" y1="22" x2="4" y2="15"/></svg>
             </button>
         </div>
     </header>
 
-    <div id="players-container" class="players-container">
-        <!-- Player cards generated dynamically -->
-    </div>
+    <div id="players-container" class="players-container"></div>
 
     <div class="input-section">
         <div class="score-display">
@@ -155,20 +170,21 @@
             <button class="num-btn miss-btn" data-num="0">MISS</button>
         </div>
 
-        <button id="submit-turn-btn" class="submit-btn" disabled>
-            Submit Turn
-        </button>
+        <button id="submit-turn-btn" class="submit-btn" disabled>Submit Turn</button>
     </div>
 </div>
 
-<!-- ==================== WINNER BANNER (in-game toast) ==================== -->
+<!-- ==================== WINNER BANNER ==================== -->
 <div id="winner-banner" class="winner-banner" style="display:none;">
     <div class="winner-banner-inner">
         <div class="banner-confetti" id="banner-confetti"></div>
         <div class="banner-trophy">🏆</div>
         <span class="banner-avatar" id="banner-winner-avatar"></span>
         <span class="banner-text"><span id="banner-winner-name"></span> wins!</span>
-        <button id="banner-dismiss-btn" class="banner-dismiss">Continue Playing</button>
+        <div class="banner-actions">
+            <button id="banner-dismiss-btn" class="banner-btn banner-continue">Continue Playing</button>
+            <button id="banner-see-results-btn" class="banner-btn banner-results">See Results</button>
+        </div>
     </div>
 </div>
 
@@ -179,22 +195,14 @@
             <h2 class="finish-title">Game Summary</h2>
             <div class="finish-meta" id="finish-meta"></div>
         </div>
-
-        <div class="finish-leaderboard" id="finish-leaderboard">
-            <!-- Generated by JS -->
-        </div>
-
+        <div class="finish-leaderboard" id="finish-leaderboard"></div>
         <div class="finish-graph-section">
             <h3 class="finish-section-title">Score Progression</h3>
             <div class="chart-wrapper">
                 <canvas id="score-chart"></canvas>
             </div>
         </div>
-
-        <div class="finish-detailed-stats" id="finish-detailed-stats">
-            <!-- Generated by JS -->
-        </div>
-
+        <div class="finish-detailed-stats" id="finish-detailed-stats"></div>
         <div class="finish-actions">
             <button id="finish-rematch-btn" class="action-btn primary-action">Rematch</button>
             <button id="finish-new-game-btn" class="action-btn secondary-action">New Game</button>
@@ -212,17 +220,16 @@
         <div class="rules-body">
             <div class="rule-section">
                 <h3>🎯 Objective</h3>
-                <p>Reduce your score from the starting number. The win condition depends on the checkout rule you choose.</p>
+                <p>Reduce your score from the starting number. The win condition depends on the checkout rule.</p>
             </div>
             <div class="rule-section">
                 <h3>🎪 The Dartboard</h3>
-                <p>The board has numbers <strong>1–20</strong>, each with single, double (outer ring), and triple (inner ring) areas. The center has the <strong>Bullseye (50)</strong> and <strong>Outer Bull (25)</strong>.</p>
+                <p>Numbers <strong>1–20</strong> with single, double, and triple areas. Center: <strong>Bullseye (50)</strong> and <strong>Outer Bull (25)</strong>.</p>
             </div>
             <div class="rule-section">
                 <h3>📋 Gameplay</h3>
                 <ul>
-                    <li>Each player throws <strong>3 darts</strong> per turn.</li>
-                    <li>The score of each dart is subtracted from your remaining total.</li>
+                    <li>Each player throws <strong>3 darts</strong> per turn</li>
                     <li><strong>Single:</strong> Face value (1–20)</li>
                     <li><strong>Double:</strong> 2× the number</li>
                     <li><strong>Triple:</strong> 3× the number</li>
@@ -231,22 +238,18 @@
             </div>
             <div class="rule-section">
                 <h3>🏁 Checkout Rules</h3>
-                <p><strong>Below Zero:</strong> The first player whose score goes <strong>below zero</strong> wins. No bust — just keep subtracting!</p>
-                <p><strong>Straight Out:</strong> You must reach <strong>exactly zero</strong> to win. Going below zero is a bust.</p>
-                <p><strong>Double Out:</strong> You must finish on a <strong>double</strong> and reach exactly zero. Going below zero or to 1 is a bust.</p>
+                <p><strong>Below Zero:</strong> First player whose score goes <strong>below zero</strong> wins.</p>
+                <p><strong>Straight Out:</strong> Reach <strong>exactly zero</strong> to win.</p>
+                <p><strong>Double Out:</strong> Finish on a <strong>double</strong> at exactly zero.</p>
             </div>
             <div class="rule-section">
-                <h3>💥 Bust Rule</h3>
-                <p>In Straight Out and Double Out modes, if your score goes below zero (or to 1 with Double Out), your entire turn is void and reverts.</p>
-                <p>In Below Zero mode there is <strong>no bust</strong>.</p>
+                <h3>💥 Bust</h3>
+                <p>In Straight/Double Out, going below zero (or to 1 in Double Out) voids your turn.</p>
+                <p>Below Zero has <strong>no bust</strong>.</p>
             </div>
             <div class="rule-section">
-                <h3>💡 Tips</h3>
-                <ul>
-                    <li>The highest single-dart score is <strong>Triple 20 = 60</strong>.</li>
-                    <li>The highest 3-dart score is <strong>180</strong> (three triple 20s).</li>
-                    <li>Plan your checkout route as you approach zero!</li>
-                </ul>
+                <h3>⚖️ Handicaps</h3>
+                <p>In Advanced Settings, give players different starting scores to level the playing field.</p>
             </div>
         </div>
     </div>
@@ -259,13 +262,11 @@
             <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
         </button>
         <h2>Choose Avatar</h2>
-        <div class="avatar-grid" id="avatar-grid">
-            <!-- Avatars generated by JS -->
-        </div>
+        <div class="avatar-grid" id="avatar-grid"></div>
     </div>
 </div>
 
-<!-- ==================== HELP BUTTON (always visible) ==================== -->
+<!-- ==================== HELP BUTTON ==================== -->
 <button id="help-btn" class="help-fab" title="Rules of Darts">
     <span>?</span>
 </button>
