@@ -6,6 +6,7 @@ import { $, gameScreen, rulesModal, avatarModal, setupScreen, switchScreen } fro
 import { initSetup, renderSetupPlayers, startGame } from './setup.js';
 import { initGame, submitTurn } from './game.js';
 import { resizeDartboard } from './board.js';
+import { copyResults } from './stats.js';
 
 // Initialize event listeners
 initSetup();
@@ -24,6 +25,7 @@ rulesModal.addEventListener('click', (e) => { if (e.target === rulesModal) rules
 
 $('#finish-rematch-btn').addEventListener('click', () => startGame());
 $('#finish-new-game-btn').addEventListener('click', () => switchScreen(setupScreen));
+$('#finish-share-btn').addEventListener('click', () => copyResults());
 
 // ==================== KEYBOARD SUPPORT ====================
 

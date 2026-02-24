@@ -6,7 +6,7 @@ import { AVATARS, PLAYER_COLORS, CHECKOUT_DESCRIPTIONS } from './constants.js';
 import { state, setup } from './state.js';
 import {
     $, $$, playerList, addPlayerBtn, avatarModal, avatarGrid,
-    gameScreen, switchScreen, gameModeLabel, roundNum, winnerBanner,
+    gameScreen, switchScreen, gameModeLabel, checkoutRuleLabel, roundNum, winnerBanner,
     seeResultsHeaderBtn, startGameBtn
 } from './dom.js';
 import { renderPlayerCards, resetTurnInput } from './game.js';
@@ -177,6 +177,8 @@ export function startGame() {
     state.scoreHistory = state.players.map(p => [p.startingScore]);
 
     gameModeLabel.textContent = state.startingScore;
+    const checkoutLabels = { 'zero-or-less': 'Zero or Less', 'straight': 'Straight Out', 'double': 'Double Out' };
+    checkoutRuleLabel.textContent = checkoutLabels[state.checkoutRule] || state.checkoutRule;
     roundNum.textContent = '1';
     winnerBanner.style.display = 'none';
     seeResultsHeaderBtn.style.display = 'none';

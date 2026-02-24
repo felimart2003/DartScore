@@ -102,6 +102,7 @@
         </button>
         <div class="header-info">
             <span class="game-mode-label" id="game-mode-label">501</span>
+            <span class="checkout-rule-label" id="checkout-rule-label">Zero or Less</span>
             <span class="round-label">Round <span id="round-num">1</span></span>
         </div>
         <div class="header-actions">
@@ -188,7 +189,15 @@
             <div class="hotspot-dots" id="hotspot-dots"></div>
         </div>
         <div class="finish-detailed-stats" id="finish-detailed-stats"></div>
+        <div class="finish-game-log-section" id="finish-game-log-section">
+            <h3 class="finish-section-title">Game Log</h3>
+            <div class="game-log" id="game-log"></div>
+        </div>
         <div class="finish-actions">
+            <button id="finish-share-btn" class="action-btn share-action">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" style="margin-right:6px;"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+                Copy Results
+            </button>
             <button id="finish-rematch-btn" class="action-btn primary-action">Rematch</button>
             <button id="finish-new-game-btn" class="action-btn secondary-action">New Game</button>
         </div>

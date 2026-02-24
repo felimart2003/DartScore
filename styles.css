@@ -268,6 +268,7 @@ body::before {
 
 .header-info { text-align: center; }
 .game-mode-label { font-family: 'Orbitron', monospace; font-weight: 700; color: var(--accent); font-size: 1rem; display: block; }
+.checkout-rule-label { font-size: 0.6rem; color: var(--text-secondary); display: block; margin: 1px 0; letter-spacing: 0.5px; }
 .round-label { font-size: 0.65rem; color: var(--text-muted); text-transform: uppercase; letter-spacing: 1.5px; }
 
 /* Player cards */
@@ -541,7 +542,24 @@ body::before {
 .psc-stat-value { font-family: 'Orbitron', monospace; font-size: 1rem; font-weight: 700; color: var(--accent); }
 .psc-stat-label { font-size: 0.55rem; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.8px; margin-top: 2px; }
 
-.finish-actions { display: flex; gap: 10px; justify-content: center; padding-bottom: max(16px, var(--safe-bottom)); }
+/* Game log */
+.finish-game-log-section { margin-top: 24px; }
+.game-log { max-height: 320px; overflow-y: auto; background: var(--bg-input); border: 1px solid var(--border); border-radius: var(--radius-md); padding: 10px 12px; font-size: 0.72rem; line-height: 1.7; }
+.game-log::-webkit-scrollbar { width: 4px; } .game-log::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
+.log-round-header { color: var(--accent); font-family: 'Orbitron', monospace; font-size: 0.65rem; letter-spacing: 1px; margin-top: 8px; margin-bottom: 2px; opacity: 0.7; }
+.log-round-header:first-child { margin-top: 0; }
+.log-entry { color: var(--text-secondary); display: flex; gap: 6px; align-items: baseline; padding: 1px 0; }
+.log-player { font-weight: 600; min-width: 24px; flex-shrink: 0; }
+.log-darts { color: var(--text-muted); flex: 1; }
+.log-result { font-family: 'Orbitron', monospace; font-size: 0.65rem; font-weight: 600; white-space: nowrap; }
+.log-bust { color: var(--red); font-style: italic; }
+
+.finish-actions { display: flex; gap: 10px; justify-content: center; flex-wrap: wrap; padding-bottom: max(16px, var(--safe-bottom)); }
+.share-action { background: var(--bg-card); border: 1.5px solid var(--accent); color: var(--accent); display: flex; align-items: center; justify-content: center; width: 100%; }
+.share-action:hover { background: rgba(0,229,255,0.08); }
+.share-action.copied { border-color: var(--green); color: var(--green); }
+.share-toast { position: fixed; bottom: 80px; left: 50%; transform: translateX(-50%); background: var(--bg-card); border: 1px solid var(--accent); color: var(--accent); padding: 8px 20px; border-radius: var(--radius-md); font-size: 0.75rem; font-family: 'Orbitron', monospace; z-index: 300; animation: toastIn 0.3s ease; pointer-events: none; }
+@keyframes toastIn { from { opacity: 0; transform: translateX(-50%) translateY(10px); } to { opacity: 1; transform: translateX(-50%) translateY(0); } }
 .action-btn {
     padding: 12px 24px; border: none; border-radius: var(--radius-md);
     font-family: 'Orbitron', monospace; font-size: 0.78rem; font-weight: 700;

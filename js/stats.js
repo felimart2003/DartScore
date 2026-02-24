@@ -15,6 +15,7 @@ export function renderFinishScreen() {
     drawScoreChart();
     renderHotspots();
     renderDetailedStats();
+    renderGameLog();
 }
 
 // ==================== LEADERBOARD ====================
@@ -277,5 +278,122 @@ function renderDetailedStats() {
             </div>
         `;
         statsEl.appendChild(card);
+    });
+}
+
+// ==================== GAME LOG ====================
+
+function formatDart(d) {
+    if (d.value === 0) return 'Miss';
+    const prefix = d.multiplier === 3 ? 'T' : d.multiplier === 2 ? 'D' : '';
+    return `${prefix}${d.value}`;
+}
+
+function renderGameLog() {
+    const logEl = $('#game-log');
+    const section = $('#finish-game-log-section');
+    logEl.innerHTML = '';
+
+    if (state.history.length === 0) {
+        section.style.display = 'none';
+        return;
+    }
+    section.style.display = '';
+
+    let currentRound = 0;
+    state.history.forEach(entry => {
+        if (entry.round !== currentRound) {
+            currentRound = entry.round;
+            const header = document.createElement('div');
+            header.className = 'log-round-header';
+            header.textContent = `ROUND ${currentRound}`;
+            logEl.appendChild(header);
+        }
+
+        const player = state.players[entry.playerIndex];
+        const dartsStr = entry.darts.map(formatDart).join(' + ');
+        const turnTotal = entry.darts.reduce((s, d) => s + d.score, 0);
+        const scoreAfter = entry.wasBust ? entry.scoreBeforeTurn : entry.scoreBeforeTurn - turnTotal;
+
+        const row = document.createElement('div');
+        row.className = 'log-entry';
+        row.innerHTML = `
+            <span class="log-player" style="color:${player.color}">${player.avatar}</span>
+            <span class="log-darts">${dartsStr} = ${turnTotal}</span>
+            ${entry.wasBust
+                ? '<span class="log-result log-bust">BUST</span>'
+                : `<span class="log-result">${entry.scoreBeforeTurn} → ${scoreAfter}</span>`
+            }
+        `;
+        logEl.appendChild(row);
+    });
+}
+
+// ==================== SHARE / COPY RESULTS ====================
+
+export function generateShareText() {
+    const checkoutLabel = state.checkoutRule === 'zero-or-less' ? 'Zero or Less' :
+                          state.checkoutRule === 'straight' ? 'Straight Out' : 'Double Out';
+
+    const lines = [];
+    lines.push('🎯 DartScore');
+    lines.push(`${state.startingScore} · ${checkoutLabel} · ${state.round} rounds`);
+    lines.push('');
+
+    // Leaderboard
+    const sorted = state.players.map((p, i) => ({ ...p, originalIndex: i }));
+    sorted.sort((a, b) => {
+        if (a.finished && b.finished) return a.finishOrder - b.finishOrder;
+        if (a.finished && !b.finished) return -1;
+        if (!a.finished && b.finished) return 1;
+        return a.score - b.score;
+    });
+
+    const medals = ['🏆', '🥈', '🥉'];
+    sorted.forEach((p, rank) => {
+        const medal = rank < 3 ? medals[rank] : `#${rank + 1}`;
+        const avg = p.turns > 0 ? (p.totalScored / p.turns).toFixed(1) : '0';
+        const finalScore = p.finished ? (state.checkoutRule === 'zero-or-less' ? p.score : 0) : p.score;
+        lines.push(`${medal} ${p.name} ${p.avatar}  ${finalScore} pts  (${p.turns} turns · avg ${avg})`);
+    });
+
+    lines.push('');
+
+    // Turn-by-turn log
+    if (state.history.length > 0) {
+        lines.push('📋 Game Log');
+        let currentRound = 0;
+        state.history.forEach(entry => {
+            if (entry.round !== currentRound) {
+                currentRound = entry.round;
+                lines.push(`— Round ${currentRound} —`);
+            }
+            const player = state.players[entry.playerIndex];
+            const dartsStr = entry.darts.map(formatDart).join(' + ');
+            const turnTotal = entry.darts.reduce((s, d) => s + d.score, 0);
+
+            if (entry.wasBust) {
+                lines.push(`  ${player.avatar} ${player.name}: ${dartsStr} = ${turnTotal} BUST`);
+            } else {
+                const scoreAfter = entry.scoreBeforeTurn - turnTotal;
+                lines.push(`  ${player.avatar} ${player.name}: ${dartsStr} = ${turnTotal} (${entry.scoreBeforeTurn}→${scoreAfter})`);
+            }
+        });
+    }
+
+    return lines.join('\n');
+}
+
+export function copyResults() {
+    const text = generateShareText();
+    navigator.clipboard.writeText(text).then(() => {
+        const btn = $('#finish-share-btn');
+        const orig = btn.innerHTML;
+        btn.classList.add('copied');
+        btn.innerHTML = `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" style="margin-right:6px;"><path d="M20 6L9 17l-5-5"/></svg>Copied!`;
+        setTimeout(() => {
+            btn.classList.remove('copied');
+            btn.innerHTML = orig;
+        }, 2000);
     });
 }

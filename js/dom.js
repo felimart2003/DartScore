@@ -18,6 +18,7 @@ export const startGameBtn = $('#start-game-btn');
 // Game header
 export const roundNum              = $('#round-num');
 export const gameModeLabel         = $('#game-mode-label');
+export const checkoutRuleLabel     = $('#checkout-rule-label');
 export const seeResultsHeaderBtn   = $('#see-results-header-btn');
 
 // Player display
@@ -52,4 +53,7 @@ export const avatarGrid  = $('#avatar-grid');
 export function switchScreen(target) {
     $$('.screen').forEach(s => s.classList.remove('active'));
     target.classList.add('active');
+    // Help FAB only visible on setup screen
+    const fab = $('#help-btn');
+    if (fab) fab.style.display = (target === $('#setup-screen')) ? 'flex' : 'none';
 }
