@@ -20,38 +20,43 @@ const PLAYER_COLORS = [
 
 // ==================== STATE ====================
 let state = {
-    startingScore: 501,
-    checkoutRule: 'double',
+    startingScore: 301,
+    checkoutRule: 'below-zero',   // 'below-zero' | 'straight' | 'double'
     players: [],
     currentPlayerIndex: 0,
     round: 1,
-    darts: [],           // current turn darts: [{value, multiplier, score}]
+    darts: [],                     // current turn darts: [{value, multiplier, score}]
     currentMultiplier: 1,
-    history: [],         // undo stack: [{playerIndex, scoreBeforeTurn, darts}]
+    history: [],                   // undo stack: [{playerIndex, scoreBeforeTurn, darts, round, wasBust}]
     gameOver: false,
+    winners: [],                   // indices of players who have finished (in order)
+    scoreHistory: [],              // per-player score after each turn: [[score, score, ...], ...]
 };
 
 // ==================== DOM REFS ====================
 const $ = (sel) => document.querySelector(sel);
 const $$ = (sel) => document.querySelectorAll(sel);
 
-const setupScreen = $('#setup-screen');
-const gameScreen = $('#game-screen');
-const winnerScreen = $('#winner-screen');
-const playerList = $('#player-list');
-const addPlayerBtn = $('#add-player-btn');
-const startGameBtn = $('#start-game-btn');
+const setupScreen   = $('#setup-screen');
+const gameScreen     = $('#game-screen');
+const finishScreen   = $('#finish-screen');
+const playerList     = $('#player-list');
+const addPlayerBtn   = $('#add-player-btn');
+const startGameBtn   = $('#start-game-btn');
 const playersContainer = $('#players-container');
-const scoreDisplay = $('#score-display');
+const scoreDisplay   = $('#score-display');
 const currentPlayerName = $('#current-player-name');
-const currentAvatar = $('#current-avatar');
-const submitTurnBtn = $('#submit-turn-btn');
-const roundNum = $('#round-num');
-const gameModeLabel = $('#game-mode-label');
-const helpBtn = $('#help-btn');
-const rulesModal = $('#rules-modal');
-const avatarModal = $('#avatar-modal');
-const avatarGrid = $('#avatar-grid');
+const currentAvatar  = $('#current-avatar');
+const submitTurnBtn  = $('#submit-turn-btn');
+const roundNum       = $('#round-num');
+const gameModeLabel  = $('#game-mode-label');
+const helpBtn        = $('#help-btn');
+const rulesModal     = $('#rules-modal');
+const avatarModal    = $('#avatar-modal');
+const avatarGrid     = $('#avatar-grid');
+const undoDartBtn    = $('#undo-dart-btn');
+const clearRoundBtn  = $('#clear-round-btn');
+const winnerBanner   = $('#winner-banner');
 
 // ==================== SETUP ====================
 
@@ -72,7 +77,7 @@ function renderSetupPlayers() {
             <input class="player-name-input" type="text" placeholder="Player ${i + 1}" 
                    value="${p.name}" data-index="${i}" maxlength="16" autocomplete="off">
             <div class="player-color-dot" style="background:${p.color}"></div>
-            ${setupPlayers.length > 2 ? `
+            ${setupPlayers.length > 1 ? `
             <button class="remove-player-btn" data-index="${i}" title="Remove player">
                 <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
             </button>` : ''}
@@ -100,11 +105,12 @@ function renderSetupPlayers() {
         btn.addEventListener('click', (e) => {
             const idx = +e.currentTarget.dataset.index;
             setupPlayers.splice(idx, 1);
+            // Reassign colors
+            setupPlayers.forEach((p, i) => p.color = PLAYER_COLORS[i % PLAYER_COLORS.length]);
             renderSetupPlayers();
         });
     });
 
-    // Toggle add btn
     addPlayerBtn.style.display = setupPlayers.length >= 8 ? 'none' : 'flex';
 }
 
@@ -121,13 +127,29 @@ addPlayerBtn.addEventListener('click', () => {
     renderSetupPlayers();
 });
 
-// Mode selection
+// ==================== MODE SELECTION ====================
 $$('.mode-btn').forEach(btn => {
     btn.addEventListener('click', () => {
         $$('.mode-btn').forEach(b => b.classList.remove('active'));
         btn.classList.add('active');
-        state.startingScore = +btn.dataset.score;
+
+        const customRow = $('#custom-score-row');
+        if (btn.dataset.score === 'custom') {
+            customRow.style.display = 'block';
+            $('#custom-score-input').focus();
+        } else {
+            customRow.style.display = 'none';
+            state.startingScore = +btn.dataset.score;
+        }
     });
+});
+
+// Custom score input
+$('#custom-score-input').addEventListener('input', (e) => {
+    const val = parseInt(e.target.value);
+    if (val && val >= 2) {
+        state.startingScore = val;
+    }
 });
 
 // Checkout selection
@@ -139,10 +161,23 @@ $$('.checkout-btn').forEach(btn => {
     });
 });
 
-// Start game
+// ==================== START GAME ====================
 startGameBtn.addEventListener('click', startGame);
 
 function startGame() {
+    // Read custom score if needed
+    const activeMode = document.querySelector('.mode-btn.active');
+    if (activeMode && activeMode.dataset.score === 'custom') {
+        const val = parseInt($('#custom-score-input').value);
+        if (!val || val < 2) {
+            $('#custom-score-input').style.borderColor = 'var(--red)';
+            $('#custom-score-input').focus();
+            setTimeout(() => { $('#custom-score-input').style.borderColor = ''; }, 1500);
+            return;
+        }
+        state.startingScore = val;
+    }
+
     state.players = setupPlayers.map((p, i) => ({
         name: p.name || `Player ${i + 1}`,
         avatar: p.avatar,
@@ -152,6 +187,8 @@ function startGame() {
         totalScored: 0,
         highestTurn: 0,
         dartsThrown: 0,
+        finished: false,
+        finishOrder: -1,
     }));
     state.currentPlayerIndex = 0;
     state.round = 1;
@@ -159,10 +196,13 @@ function startGame() {
     state.currentMultiplier = 1;
     state.history = [];
     state.gameOver = false;
+    state.winners = [];
+    state.scoreHistory = state.players.map(() => [state.startingScore]);
 
     gameModeLabel.textContent = state.startingScore;
     roundNum.textContent = '1';
 
+    winnerBanner.style.display = 'none';
     switchScreen(gameScreen);
     renderPlayerCards();
     resetTurnInput();
@@ -191,16 +231,12 @@ function openAvatarModal() {
 }
 
 $('#close-avatar').addEventListener('click', () => avatarModal.classList.remove('open'));
-avatarModal.addEventListener('click', (e) => {
-    if (e.target === avatarModal) avatarModal.classList.remove('open');
-});
+avatarModal.addEventListener('click', (e) => { if (e.target === avatarModal) avatarModal.classList.remove('open'); });
 
 // ==================== RULES MODAL ====================
 helpBtn.addEventListener('click', () => rulesModal.classList.add('open'));
 $('#close-rules').addEventListener('click', () => rulesModal.classList.remove('open'));
-rulesModal.addEventListener('click', (e) => {
-    if (e.target === rulesModal) rulesModal.classList.remove('open');
-});
+rulesModal.addEventListener('click', (e) => { if (e.target === rulesModal) rulesModal.classList.remove('open'); });
 
 // ==================== SCREEN SWITCHING ====================
 function switchScreen(target) {
@@ -213,10 +249,19 @@ function renderPlayerCards() {
     playersContainer.innerHTML = '';
     state.players.forEach((p, i) => {
         const card = document.createElement('div');
-        card.className = `player-card${i === state.currentPlayerIndex ? ' active' : ''}`;
+        let cls = 'player-card';
+        if (i === state.currentPlayerIndex) cls += ' active';
+        if (p.finished) cls += ' finished-player';
+        card.className = cls;
         card.dataset.index = i;
 
         const avg = p.turns > 0 ? Math.round(p.totalScored / p.turns) : 0;
+
+        let badge = '';
+        if (p.finished) {
+            const label = p.finishOrder === 0 ? '🏆 1st' : p.finishOrder === 1 ? '🥈 2nd' : p.finishOrder === 2 ? '🥉 3rd' : `#${p.finishOrder + 1}`;
+            badge = `<div class="card-winner-badge">${label}</div>`;
+        }
 
         card.innerHTML = `
             <div class="card-avatar" style="border-color:${i === state.currentPlayerIndex ? p.color : 'var(--border)'}">
@@ -225,11 +270,11 @@ function renderPlayerCards() {
             <div class="card-name">${p.name}</div>
             <div class="card-score">${p.score}</div>
             <div class="card-last-score">${p.turns > 0 ? `Avg: ${avg}` : '—'}</div>
+            ${badge}
         `;
         playersContainer.appendChild(card);
     });
 
-    // Scroll active card into view
     const activeCard = playersContainer.querySelector('.player-card.active');
     if (activeCard) {
         activeCard.scrollIntoView({ behavior: 'smooth', inline: 'center', block: 'nearest' });
@@ -240,13 +285,13 @@ function resetTurnInput() {
     state.darts = [];
     state.currentMultiplier = 1;
 
-    // Reset multiplier buttons
     $$('.mult-btn').forEach(b => b.classList.remove('active'));
     $$('.mult-btn')[0].classList.add('active');
 
     updateDartTracker();
     updateScoreDisplay();
     updateSubmitButton();
+    updateDartActionButtons();
     updateCurrentPlayerIndicator();
 }
 
@@ -282,8 +327,9 @@ function updateDartTracker() {
 function updateScoreDisplay() {
     const turnTotal = state.darts.reduce((sum, d) => sum + d.score, 0);
     scoreDisplay.textContent = turnTotal;
+    scoreDisplay.style.color = '';
     scoreDisplay.classList.remove('score-pop');
-    void scoreDisplay.offsetWidth; // reflow
+    void scoreDisplay.offsetWidth;
     scoreDisplay.classList.add('score-pop');
 }
 
@@ -296,6 +342,11 @@ function updateSubmitButton() {
     } else {
         submitTurnBtn.textContent = 'Submit Turn';
     }
+}
+
+function updateDartActionButtons() {
+    undoDartBtn.disabled = state.darts.length === 0;
+    clearRoundBtn.disabled = state.darts.length === 0;
 }
 
 // ==================== INPUT HANDLING ====================
@@ -317,35 +368,44 @@ $$('.num-btn').forEach(btn => {
         const value = +btn.dataset.num;
         let multiplier = state.currentMultiplier;
 
-        // Bull special: 25 single or 50 double, no triple
-        if (value === 25 && multiplier === 3) {
-            multiplier = 2; // triple bull -> treat as double bull (50)
-        }
-
-        // Miss
-        if (value === 0) {
-            multiplier = 1;
-        }
+        if (value === 25 && multiplier === 3) multiplier = 2;
+        if (value === 0) multiplier = 1;
 
         const score = value * multiplier;
-
         state.darts.push({ value, multiplier, score });
 
-        // Haptic feedback on mobile
         if (navigator.vibrate) navigator.vibrate(15);
 
         updateDartTracker();
         updateScoreDisplay();
         updateSubmitButton();
+        updateDartActionButtons();
 
-        // Auto-submit after 3 darts
-        if (state.darts.length === 3) {
-            submitTurnBtn.focus();
-        }
+        if (state.darts.length === 3) submitTurnBtn.focus();
     });
 });
 
-// Submit turn
+// ==================== UNDO DART (undo single dart input) ====================
+undoDartBtn.addEventListener('click', () => {
+    if (state.darts.length === 0) return;
+    state.darts.pop();
+    updateDartTracker();
+    updateScoreDisplay();
+    updateSubmitButton();
+    updateDartActionButtons();
+});
+
+// ==================== CLEAR ROUND (clear all darts in current input) ====================
+clearRoundBtn.addEventListener('click', () => {
+    if (state.darts.length === 0) return;
+    state.darts = [];
+    updateDartTracker();
+    updateScoreDisplay();
+    updateSubmitButton();
+    updateDartActionButtons();
+});
+
+// ==================== SUBMIT TURN ====================
 submitTurnBtn.addEventListener('click', submitTurn);
 
 function submitTurn() {
@@ -356,51 +416,72 @@ function submitTurn() {
     const scoreBeforeTurn = player.score;
     const newScore = player.score - turnTotal;
 
+    // Determine bust status
+    const isBust = checkBust(newScore, state.darts);
+
     // Save to history for undo
     state.history.push({
         playerIndex: state.currentPlayerIndex,
-        scoreBeforeTurn: scoreBeforeTurn,
+        scoreBeforeTurn,
         darts: [...state.darts],
         round: state.round,
+        wasBust: isBust,
     });
 
-    // Check bust
-    const isBust = checkBust(newScore, state.darts);
-
     if (isBust) {
-        // Bust - score reverts
+        // Bust — score reverts, don't update stats
         bustAnimation();
-    } else if (newScore === 0) {
-        // Winner!
-        player.score = 0;
-        player.turns++;
-        player.totalScored += turnTotal;
-        player.dartsThrown += state.darts.length;
-        if (turnTotal > player.highestTurn) player.highestTurn = turnTotal;
-
-        renderPlayerCards();
-        showWinner(state.currentPlayerIndex);
-        return;
+        // Record same score in history (no change)
+        state.scoreHistory[state.currentPlayerIndex].push(scoreBeforeTurn);
     } else {
-        // Valid turn
+        // Valid turn — update score & stats
         player.score = newScore;
         player.turns++;
         player.totalScored += turnTotal;
         player.dartsThrown += state.darts.length;
         if (turnTotal > player.highestTurn) player.highestTurn = turnTotal;
+
+        // Record new score
+        state.scoreHistory[state.currentPlayerIndex].push(newScore);
+
+        // Check win condition
+        const won = checkWin(newScore);
+        if (won && !player.finished) {
+            player.finished = true;
+            player.finishOrder = state.winners.length;
+            state.winners.push(state.currentPlayerIndex);
+
+            renderPlayerCards();
+            showWinnerBanner(state.currentPlayerIndex);
+            // Don't advance yet — banner dismiss will call advanceToNextPlayer
+            return;
+        }
     }
 
-    // Next player
     advanceToNextPlayer();
 }
 
+function checkWin(newScore) {
+    if (state.checkoutRule === 'below-zero') {
+        return newScore < 0;
+    }
+    // straight and double: win at exactly 0 (bust logic already handled)
+    return newScore === 0;
+}
+
 function checkBust(newScore, darts) {
-    if (newScore < 0) return true;
+    if (state.checkoutRule === 'below-zero') {
+        // No bust in below-zero mode
+        return false;
+    }
+
+    if (state.checkoutRule === 'straight') {
+        return newScore < 0;
+    }
 
     if (state.checkoutRule === 'double') {
-        // Can't finish on 1 with double out
+        if (newScore < 0) return true;
         if (newScore === 1) return true;
-        // If exactly 0, last dart must be a double
         if (newScore === 0) {
             const lastDart = darts[darts.length - 1];
             if (lastDart.multiplier !== 2) return true;
@@ -416,50 +497,136 @@ function bustAnimation() {
         activeCard.classList.add('bust');
         setTimeout(() => activeCard.classList.remove('bust'), 600);
     }
-    // Show bust text briefly on score display
     scoreDisplay.textContent = 'BUST';
     scoreDisplay.style.color = 'var(--red)';
-    setTimeout(() => {
-        scoreDisplay.style.color = '';
-    }, 800);
+    setTimeout(() => { scoreDisplay.style.color = ''; }, 800);
 }
 
 function advanceToNextPlayer() {
-    state.currentPlayerIndex = (state.currentPlayerIndex + 1) % state.players.length;
+    // Find next active (non-finished) player
+    const totalPlayers = state.players.length;
+    let next = (state.currentPlayerIndex + 1) % totalPlayers;
+    let attempts = 0;
 
-    // Check if we've wrapped around to start new round
-    if (state.currentPlayerIndex === 0) {
-        state.round++;
-        roundNum.textContent = state.round;
+    while (state.players[next].finished && attempts < totalPlayers) {
+        next = (next + 1) % totalPlayers;
+        attempts++;
     }
+
+    // Check if all players finished
+    const activePlayers = state.players.filter(p => !p.finished);
+    if (activePlayers.length === 0) {
+        // Everyone finished — auto finish game
+        finishGame();
+        return;
+    }
+
+    state.currentPlayerIndex = next;
+
+    // Check if we've wrapped around for a new round
+    // Simple approach: track by round increments
+    if (next <= state.currentPlayerIndex || next === 0) {
+        // Only increment round when player 0 gets their turn (or the first non-finished player after 0)
+    }
+    // A cleaner round tracking: count how many full cycles
+    recalcRound();
 
     renderPlayerCards();
     resetTurnInput();
 }
 
-// ==================== UNDO ====================
+function recalcRound() {
+    // Round = (total submitted turns across all players / number of players) + 1, roughly
+    // More accurate: count turns of the player with the most turns
+    const maxTurns = Math.max(...state.players.map(p => p.turns));
+    // If all busts are also counted in history, round correlates with history
+    // Simple: just use the history length
+    const totalTurns = state.history.length;
+    state.round = Math.floor(totalTurns / state.players.length) + 1;
+    roundNum.textContent = state.round;
+}
+
+// ==================== WINNER BANNER ====================
+function showWinnerBanner(playerIndex) {
+    const player = state.players[playerIndex];
+    $('#banner-winner-avatar').textContent = player.avatar;
+    $('#banner-winner-name').textContent = player.name;
+
+    // Mini confetti in banner
+    const confettiEl = $('#banner-confetti');
+    confettiEl.innerHTML = '';
+    const colors = ['#00e5ff', '#f87171', '#34d399', '#fbbf24', '#a78bfa', '#fb923c', '#f472b6'];
+    for (let i = 0; i < 40; i++) {
+        const piece = document.createElement('div');
+        piece.className = 'confetti-piece';
+        piece.style.left = Math.random() * 100 + '%';
+        piece.style.top = '-10px';
+        piece.style.backgroundColor = colors[Math.floor(Math.random() * colors.length)];
+        piece.style.width = (Math.random() * 6 + 4) + 'px';
+        piece.style.height = (Math.random() * 6 + 4) + 'px';
+        piece.style.borderRadius = Math.random() > 0.5 ? '50%' : '2px';
+        piece.style.animationDuration = (Math.random() * 2 + 1.5) + 's';
+        piece.style.animationDelay = (Math.random() * 1) + 's';
+        confettiEl.appendChild(piece);
+    }
+
+    winnerBanner.style.display = 'flex';
+}
+
+$('#banner-dismiss-btn').addEventListener('click', () => {
+    winnerBanner.style.display = 'none';
+
+    // Check if all players finished
+    const activePlayers = state.players.filter(p => !p.finished);
+    if (activePlayers.length === 0) {
+        finishGame();
+        return;
+    }
+
+    advanceToNextPlayer();
+});
+
+// ==================== UNDO LAST SUBMITTED TURN ====================
 $('#undo-btn').addEventListener('click', () => {
-    if (state.history.length === 0 || state.gameOver) return;
+    if (state.history.length === 0) return;
+
+    // If we're on the finish screen, go back to game
+    if (finishScreen.classList.contains('active')) {
+        switchScreen(gameScreen);
+    }
 
     const last = state.history.pop();
-    state.players[last.playerIndex].score = last.scoreBeforeTurn;
-    
-    // Revert stats
-    const turnTotal = last.darts.reduce((sum, d) => sum + d.score, 0);
     const player = state.players[last.playerIndex];
-    // Only revert stats if this wasn't a bust (player stats wouldn't have been updated for busts)
-    // We check if current player index has changed from last entry
-    if (state.currentPlayerIndex !== last.playerIndex) {
+
+    // If the player had finished and we're undoing that winning turn
+    if (player.finished) {
+        // Check if the score history for that turn put them at win
+        player.finished = false;
+        player.finishOrder = -1;
+        state.winners = state.winners.filter(w => w !== last.playerIndex);
+        state.gameOver = false;
+    }
+
+    // Revert score
+    player.score = last.scoreBeforeTurn;
+
+    // Remove last score history entry for that player
+    if (state.scoreHistory[last.playerIndex].length > 1) {
+        state.scoreHistory[last.playerIndex].pop();
+    }
+
+    // Revert stats only if it wasn't a bust (bust doesn't update stats)
+    if (!last.wasBust) {
+        const turnTotal = last.darts.reduce((sum, d) => sum + d.score, 0);
         player.turns = Math.max(0, player.turns - 1);
         player.totalScored = Math.max(0, player.totalScored - turnTotal);
         player.dartsThrown = Math.max(0, player.dartsThrown - last.darts.length);
-        // highestTurn is hard to revert perfectly, leave it
     }
 
     state.currentPlayerIndex = last.playerIndex;
-    state.round = last.round;
-    roundNum.textContent = state.round;
+    recalcRound();
 
+    winnerBanner.style.display = 'none';
     renderPlayerCards();
     resetTurnInput();
 });
@@ -469,74 +636,243 @@ $('#back-btn').addEventListener('click', () => {
     if (state.history.length > 0) {
         if (!confirm('Leave current game? Progress will be lost.')) return;
     }
+    winnerBanner.style.display = 'none';
     switchScreen(setupScreen);
 });
 
-// ==================== WINNER ====================
-function showWinner(playerIndex) {
+// ==================== FINISH GAME ====================
+$('#finish-game-btn').addEventListener('click', () => {
+    if (state.history.length === 0) {
+        if (!confirm('No turns played yet. Finish anyway?')) return;
+    }
+    finishGame();
+});
+
+function finishGame() {
     state.gameOver = true;
-    const player = state.players[playerIndex];
+    winnerBanner.style.display = 'none';
 
-    $('#winner-name').textContent = player.name;
-    $('#winner-avatar').textContent = player.avatar;
-
-    const avg = player.turns > 0 ? (player.totalScored / player.turns).toFixed(1) : 0;
-
-    $('#winner-stats').innerHTML = `
-        <div class="stat-item">
-            <div class="stat-value">${player.turns}</div>
-            <div class="stat-label">Rounds</div>
-        </div>
-        <div class="stat-item">
-            <div class="stat-value">${avg}</div>
-            <div class="stat-label">Avg / Turn</div>
-        </div>
-        <div class="stat-item">
-            <div class="stat-value">${player.highestTurn}</div>
-            <div class="stat-label">Best Turn</div>
-        </div>
-        <div class="stat-item">
-            <div class="stat-value">${player.dartsThrown}</div>
-            <div class="stat-label">Darts</div>
-        </div>
-    `;
-
-    switchScreen(winnerScreen);
-    launchConfetti();
+    renderFinishScreen();
+    switchScreen(finishScreen);
 }
 
-$('#rematch-btn').addEventListener('click', () => {
-    // Same players, reset scores
-    startGame();
-});
+function renderFinishScreen() {
+    const checkoutLabel = state.checkoutRule === 'below-zero' ? 'Below Zero' :
+                          state.checkoutRule === 'straight' ? 'Straight Out' : 'Double Out';
+    $('#finish-meta').textContent = `${state.startingScore} · ${checkoutLabel} · ${state.round} rounds`;
 
-$('#new-game-btn').addEventListener('click', () => {
-    switchScreen(setupScreen);
-});
+    // ---- Leaderboard ----
+    // Sort players: finished first (by finish order), then by lowest score
+    const sorted = state.players.map((p, i) => ({ ...p, originalIndex: i }));
+    sorted.sort((a, b) => {
+        if (a.finished && b.finished) return a.finishOrder - b.finishOrder;
+        if (a.finished && !b.finished) return -1;
+        if (!a.finished && b.finished) return 1;
+        return a.score - b.score; // lower score = better
+    });
 
-// ==================== CONFETTI ====================
-function launchConfetti() {
-    const canvas = $('#confetti-canvas');
-    canvas.innerHTML = '';
-    const colors = ['#00e5ff', '#f87171', '#34d399', '#fbbf24', '#a78bfa', '#fb923c', '#f472b6'];
+    const lbEl = $('#finish-leaderboard');
+    lbEl.innerHTML = '';
+    sorted.forEach((p, rank) => {
+        const avg = p.turns > 0 ? (p.totalScored / p.turns).toFixed(1) : '0';
+        const isWinner = rank === 0 && p.finished;
+        const card = document.createElement('div');
+        card.className = `lb-card${isWinner ? ' lb-winner' : ''}`;
+        card.innerHTML = `
+            <div class="lb-rank ${rank < 3 ? 'rank-' + (rank + 1) : ''}">${rank + 1}</div>
+            <div class="lb-avatar" style="border-color:${isWinner ? 'var(--gold)' : p.color}">${p.avatar}</div>
+            <div class="lb-info">
+                <div class="lb-name">${p.name}</div>
+                <div class="lb-sub">${p.turns} turns · Avg ${avg}</div>
+            </div>
+            <div class="lb-score">${p.finished ? (state.checkoutRule === 'below-zero' ? p.score : '0') : p.score}</div>
+        `;
+        lbEl.appendChild(card);
+    });
 
-    for (let i = 0; i < 80; i++) {
-        const piece = document.createElement('div');
-        piece.className = 'confetti-piece';
-        piece.style.left = Math.random() * 100 + '%';
-        piece.style.top = -10 + 'px';
-        piece.style.backgroundColor = colors[Math.floor(Math.random() * colors.length)];
-        piece.style.width = (Math.random() * 8 + 5) + 'px';
-        piece.style.height = (Math.random() * 8 + 5) + 'px';
-        piece.style.borderRadius = Math.random() > 0.5 ? '50%' : '2px';
-        piece.style.animationDuration = (Math.random() * 2 + 2) + 's';
-        piece.style.animationDelay = (Math.random() * 1.5) + 's';
-        canvas.appendChild(piece);
+    // ---- Chart ----
+    drawScoreChart();
+
+    // ---- Detailed stats per player ----
+    const statsEl = $('#finish-detailed-stats');
+    statsEl.innerHTML = '<h3 class="finish-section-title">Player Statistics</h3>';
+    state.players.forEach((p, i) => {
+        const avg = p.turns > 0 ? (p.totalScored / p.turns).toFixed(1) : '0';
+        const dartAvg = p.dartsThrown > 0 ? (p.totalScored / p.dartsThrown).toFixed(1) : '0';
+        const card = document.createElement('div');
+        card.className = 'player-stats-card';
+        card.innerHTML = `
+            <div class="psc-header">
+                <div class="psc-avatar" style="border-color:${p.color}">${p.avatar}</div>
+                <div class="psc-name">${p.name}</div>
+            </div>
+            <div class="psc-grid">
+                <div class="psc-stat">
+                    <div class="psc-stat-value">${p.score}</div>
+                    <div class="psc-stat-label">Final Score</div>
+                </div>
+                <div class="psc-stat">
+                    <div class="psc-stat-value">${p.turns}</div>
+                    <div class="psc-stat-label">Turns</div>
+                </div>
+                <div class="psc-stat">
+                    <div class="psc-stat-value">${avg}</div>
+                    <div class="psc-stat-label">Avg / Turn</div>
+                </div>
+                <div class="psc-stat">
+                    <div class="psc-stat-value">${p.highestTurn}</div>
+                    <div class="psc-stat-label">Best Turn</div>
+                </div>
+                <div class="psc-stat">
+                    <div class="psc-stat-value">${p.dartsThrown}</div>
+                    <div class="psc-stat-label">Darts Thrown</div>
+                </div>
+                <div class="psc-stat">
+                    <div class="psc-stat-value">${dartAvg}</div>
+                    <div class="psc-stat-label">Per Dart Avg</div>
+                </div>
+            </div>
+        `;
+        statsEl.appendChild(card);
+    });
+}
+
+// ==================== CHART (pure canvas) ====================
+function drawScoreChart() {
+    const canvas = $('#score-chart');
+    const ctx = canvas.getContext('2d');
+
+    // Find max turns for x-axis
+    const maxLen = Math.max(...state.scoreHistory.map(h => h.length));
+    if (maxLen <= 1) {
+        canvas.width = 0;
+        canvas.height = 0;
+        return;
     }
 
-    // Clean up confetti after animation
-    setTimeout(() => { canvas.innerHTML = ''; }, 5000);
+    const dpr = window.devicePixelRatio || 1;
+    const W = Math.max(maxLen * 60, 400);
+    const H = 280;
+    canvas.width = W * dpr;
+    canvas.height = H * dpr;
+    canvas.style.width = W + 'px';
+    canvas.style.height = H + 'px';
+    ctx.scale(dpr, dpr);
+
+    const pad = { top: 20, right: 20, bottom: 36, left: 50 };
+    const chartW = W - pad.left - pad.right;
+    const chartH = H - pad.top - pad.bottom;
+
+    // Find value range
+    const allScores = state.scoreHistory.flat();
+    const minScore = Math.min(0, ...allScores);
+    const maxScore = Math.max(...allScores);
+    const scoreRange = maxScore - minScore || 1;
+
+    const xStep = chartW / (maxLen - 1);
+
+    function toX(i) { return pad.left + i * xStep; }
+    function toY(val) { return pad.top + chartH - ((val - minScore) / scoreRange) * chartH; }
+
+    // Background
+    ctx.fillStyle = '#1a2234';
+    ctx.fillRect(0, 0, W, H);
+
+    // Grid lines
+    ctx.strokeStyle = '#2a3550';
+    ctx.lineWidth = 0.5;
+    const gridLines = 5;
+    for (let i = 0; i <= gridLines; i++) {
+        const val = minScore + (scoreRange / gridLines) * i;
+        const y = toY(val);
+        ctx.beginPath();
+        ctx.moveTo(pad.left, y);
+        ctx.lineTo(W - pad.right, y);
+        ctx.stroke();
+
+        // Label
+        ctx.fillStyle = '#5a6478';
+        ctx.font = '10px Inter, sans-serif';
+        ctx.textAlign = 'right';
+        ctx.fillText(Math.round(val), pad.left - 6, y + 3);
+    }
+
+    // Zero line highlight
+    if (minScore < 0) {
+        const zeroY = toY(0);
+        ctx.strokeStyle = 'rgba(248,113,113,0.4)';
+        ctx.lineWidth = 1;
+        ctx.setLineDash([4, 4]);
+        ctx.beginPath();
+        ctx.moveTo(pad.left, zeroY);
+        ctx.lineTo(W - pad.right, zeroY);
+        ctx.stroke();
+        ctx.setLineDash([]);
+    }
+
+    // X-axis labels
+    ctx.fillStyle = '#5a6478';
+    ctx.font = '10px Inter, sans-serif';
+    ctx.textAlign = 'center';
+    for (let i = 0; i < maxLen; i++) {
+        if (maxLen > 20 && i % Math.ceil(maxLen / 15) !== 0 && i !== maxLen - 1) continue;
+        ctx.fillText(i, toX(i), H - pad.bottom + 16);
+    }
+    ctx.fillText('Turn', W / 2, H - 4);
+
+    // Draw lines for each player
+    state.players.forEach((player, pIdx) => {
+        const data = state.scoreHistory[pIdx];
+        if (data.length < 2) return;
+
+        ctx.strokeStyle = player.color;
+        ctx.lineWidth = 2.5;
+        ctx.lineJoin = 'round';
+        ctx.lineCap = 'round';
+
+        // Glow effect
+        ctx.shadowColor = player.color;
+        ctx.shadowBlur = 8;
+
+        ctx.beginPath();
+        data.forEach((val, i) => {
+            const x = toX(i);
+            const y = toY(val);
+            if (i === 0) ctx.moveTo(x, y);
+            else ctx.lineTo(x, y);
+        });
+        ctx.stroke();
+
+        ctx.shadowBlur = 0;
+
+        // Dots
+        data.forEach((val, i) => {
+            const x = toX(i);
+            const y = toY(val);
+            ctx.fillStyle = player.color;
+            ctx.beginPath();
+            ctx.arc(x, y, 3, 0, Math.PI * 2);
+            ctx.fill();
+        });
+    });
+
+    // Legend
+    const legendY = pad.top - 6;
+    let legendX = pad.left;
+    state.players.forEach((p, i) => {
+        ctx.fillStyle = p.color;
+        ctx.fillRect(legendX, legendY - 6, 10, 10);
+        ctx.fillStyle = '#8892a8';
+        ctx.font = '10px Inter, sans-serif';
+        ctx.textAlign = 'left';
+        ctx.fillText(p.name, legendX + 14, legendY + 3);
+        legendX += ctx.measureText(p.name).width + 30;
+    });
 }
+
+// ==================== FINISH SCREEN ACTIONS ====================
+$('#finish-rematch-btn').addEventListener('click', () => startGame());
+$('#finish-new-game-btn').addEventListener('click', () => switchScreen(setupScreen));
 
 // ==================== KEYBOARD SUPPORT ====================
 document.addEventListener('keydown', (e) => {
@@ -550,23 +886,24 @@ document.addEventListener('keydown', (e) => {
 
     if (!gameScreen.classList.contains('active')) return;
 
-    // Number keys 0-9
-    if (e.key >= '0' && e.key <= '9') {
-        // This is a simple shortcut; for 10-20 and bull we rely on clicks
-    }
-
-    if (e.key === 'Enter') {
-        submitTurn();
-    }
+    if (e.key === 'Enter') submitTurn();
 
     if (e.key === 'z' && (e.ctrlKey || e.metaKey)) {
         e.preventDefault();
         $('#undo-btn').click();
     }
+
+    if (e.key === 'Backspace' && !e.ctrlKey) {
+        e.preventDefault();
+        undoDartBtn.click();
+    }
+
+    if (e.key === 'Escape') {
+        clearRoundBtn.click();
+    }
 });
 
 // ==================== INIT ====================
 renderSetupPlayers();
-
-// Set default starting score
-state.startingScore = 501;
+state.startingScore = 301;
+state.checkoutRule = 'below-zero';

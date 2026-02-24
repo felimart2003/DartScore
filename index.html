@@ -39,14 +39,20 @@
                     <button class="mode-btn active" data-score="301">301</button>
                     <button class="mode-btn" data-score="501">501</button>
                     <button class="mode-btn" data-score="701">701</button>
+                    <button class="mode-btn" data-score="custom" id="custom-score-btn">Custom</button>
+                </div>
+                <div class="custom-score-row" id="custom-score-row" style="display:none;">
+                    <input type="number" id="custom-score-input" class="custom-score-input" 
+                           placeholder="Enter starting score..." min="2" max="99999" autocomplete="off">
                 </div>
             </div>
 
             <div class="checkout-section">
                 <label class="section-label">Checkout Rule</label>
-                <div class="mode-buttons">
-                    <button class="checkout-btn active" data-checkout="double">Double Out</button>
+                <div class="mode-buttons checkout-modes">
+                    <button class="checkout-btn active" data-checkout="below-zero">Below Zero</button>
                     <button class="checkout-btn" data-checkout="straight">Straight Out</button>
+                    <button class="checkout-btn" data-checkout="double">Double Out</button>
                 </div>
             </div>
 
@@ -79,9 +85,14 @@
             <span class="game-mode-label" id="game-mode-label">501</span>
             <span class="round-label">Round <span id="round-num">1</span></span>
         </div>
-        <button id="undo-btn" class="icon-btn" title="Undo last score">
-            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M3 10h10a5 5 0 0 1 0 10H9"/><path d="M3 10l4-4M3 10l4 4"/></svg>
-        </button>
+        <div class="header-actions">
+            <button id="undo-btn" class="icon-btn" title="Undo last submitted turn">
+                <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M3 10h10a5 5 0 0 1 0 10H9"/><path d="M3 10l4-4M3 10l4 4"/></svg>
+            </button>
+            <button id="finish-game-btn" class="icon-btn finish-btn-icon" title="Finish Game">
+                <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M4 15s1-1 4-1 5 2 8 2 4-1 4-1V3s-1 1-4 1-5-2-8-2-4 1-4 1z"/><line x1="4" y1="22" x2="4" y2="15"/></svg>
+            </button>
+        </div>
     </header>
 
     <div id="players-container" class="players-container">
@@ -111,6 +122,12 @@
                 <span class="dart-dot" id="dart-3"></span>
             </div>
             <div class="dart-scores" id="dart-scores"></div>
+            <button id="undo-dart-btn" class="dart-action-btn" title="Undo last dart" disabled>
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M3 10h10a5 5 0 0 1 0 10H9"/><path d="M3 10l4-4M3 10l4 4"/></svg>
+            </button>
+            <button id="clear-round-btn" class="dart-action-btn clear-btn" title="Clear all darts" disabled>
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+            </button>
         </div>
 
         <div class="numpad">
@@ -144,26 +161,43 @@
     </div>
 </div>
 
-<!-- ==================== WINNER SCREEN ==================== -->
-<div id="winner-screen" class="screen">
-    <div class="winner-container">
-        <div class="confetti-canvas" id="confetti-canvas"></div>
-        <div class="trophy">
-            <svg viewBox="0 0 100 100" width="100" height="100">
-                <path d="M30 25h40v10c0 15-8 28-20 32-12-4-20-17-20-32V25z" fill="var(--gold)" stroke="var(--gold-dark)" stroke-width="2"/>
-                <path d="M30 30H18c0 12 5 20 12 22" fill="none" stroke="var(--gold)" stroke-width="3" stroke-linecap="round"/>
-                <path d="M70 30h12c0 12-5 20-12 22" fill="none" stroke="var(--gold)" stroke-width="3" stroke-linecap="round"/>
-                <rect x="42" y="67" width="16" height="8" rx="2" fill="var(--gold-dark)"/>
-                <rect x="35" y="75" width="30" height="6" rx="3" fill="var(--gold)"/>
-            </svg>
+<!-- ==================== WINNER BANNER (in-game toast) ==================== -->
+<div id="winner-banner" class="winner-banner" style="display:none;">
+    <div class="winner-banner-inner">
+        <div class="banner-confetti" id="banner-confetti"></div>
+        <div class="banner-trophy">🏆</div>
+        <span class="banner-avatar" id="banner-winner-avatar"></span>
+        <span class="banner-text"><span id="banner-winner-name"></span> wins!</span>
+        <button id="banner-dismiss-btn" class="banner-dismiss">Continue Playing</button>
+    </div>
+</div>
+
+<!-- ==================== FINISH / SUMMARY SCREEN ==================== -->
+<div id="finish-screen" class="screen">
+    <div class="finish-container">
+        <div class="finish-header-area">
+            <h2 class="finish-title">Game Summary</h2>
+            <div class="finish-meta" id="finish-meta"></div>
         </div>
-        <h2 class="winner-title">Winner!</h2>
-        <div class="winner-avatar" id="winner-avatar"></div>
-        <h3 class="winner-name" id="winner-name">Player 1</h3>
-        <div class="winner-stats" id="winner-stats"></div>
-        <div class="winner-actions">
-            <button id="rematch-btn" class="action-btn primary-action">Rematch</button>
-            <button id="new-game-btn" class="action-btn secondary-action">New Game</button>
+
+        <div class="finish-leaderboard" id="finish-leaderboard">
+            <!-- Generated by JS -->
+        </div>
+
+        <div class="finish-graph-section">
+            <h3 class="finish-section-title">Score Progression</h3>
+            <div class="chart-wrapper">
+                <canvas id="score-chart"></canvas>
+            </div>
+        </div>
+
+        <div class="finish-detailed-stats" id="finish-detailed-stats">
+            <!-- Generated by JS -->
+        </div>
+
+        <div class="finish-actions">
+            <button id="finish-rematch-btn" class="action-btn primary-action">Rematch</button>
+            <button id="finish-new-game-btn" class="action-btn secondary-action">New Game</button>
         </div>
     </div>
 </div>
@@ -178,7 +212,7 @@
         <div class="rules-body">
             <div class="rule-section">
                 <h3>🎯 Objective</h3>
-                <p>Be the first player to reduce your score from the starting number (301, 501, or 701) to exactly <strong>zero</strong>.</p>
+                <p>Reduce your score from the starting number. The win condition depends on the checkout rule you choose.</p>
             </div>
             <div class="rule-section">
                 <h3>🎪 The Dartboard</h3>
@@ -196,13 +230,15 @@
                 </ul>
             </div>
             <div class="rule-section">
-                <h3>🏁 Finishing (Checkout)</h3>
-                <p><strong>Double Out:</strong> Your final dart must land on a double segment (or double bull) to win. If you go below zero or to exactly 1, your turn is "bust" and your score resets to what it was at the start of the turn.</p>
-                <p><strong>Straight Out:</strong> You can finish on any segment as long as you reach exactly zero.</p>
+                <h3>🏁 Checkout Rules</h3>
+                <p><strong>Below Zero:</strong> The first player whose score goes <strong>below zero</strong> wins. No bust — just keep subtracting!</p>
+                <p><strong>Straight Out:</strong> You must reach <strong>exactly zero</strong> to win. Going below zero is a bust.</p>
+                <p><strong>Double Out:</strong> You must finish on a <strong>double</strong> and reach exactly zero. Going below zero or to 1 is a bust.</p>
             </div>
             <div class="rule-section">
                 <h3>💥 Bust Rule</h3>
-                <p>If your subtracted score goes <strong>below zero</strong>, or leaves you on <strong>1 with Double Out</strong> (since no double = 1), your entire turn is void and the score reverts to the start of that turn.</p>
+                <p>In Straight Out and Double Out modes, if your score goes below zero (or to 1 with Double Out), your entire turn is void and reverts.</p>
+                <p>In Below Zero mode there is <strong>no bust</strong>.</p>
             </div>
             <div class="rule-section">
                 <h3>💡 Tips</h3>
