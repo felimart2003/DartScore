@@ -676,3 +676,265 @@ body::before {
     .miss-board-btn { padding: 5px; min-height: 30px; font-size: 0.68rem; }
     .score-input-display { font-size: 1.4rem; }
 }
+
+/* ============ DESKTOP: 3-PANEL LAYOUT ============ */
+@media (min-width: 900px) {
+
+    /* ===== SETUP SCREEN: larger & more spacious ===== */
+    #setup-screen { justify-content: center; }
+    .setup-container { max-width: 520px; }
+    .logo-area { margin-bottom: 32px; padding-top: 0; }
+    .dartboard-icon svg { width: 90px; height: 90px; }
+    .app-title { font-size: 2.6rem; letter-spacing: 5px; }
+    .app-subtitle { font-size: 0.78rem; letter-spacing: 7px; }
+    .setup-card { padding: 32px 28px; }
+    .setup-card h2 { font-size: 1.15rem; margin-bottom: 24px; }
+    .mode-btn, .checkout-btn { padding: 12px 10px; }
+    .start-btn { padding: 16px; font-size: 1rem; }
+    .player-avatar-btn { width: 42px; height: 42px; font-size: 1.3rem; }
+    .player-name-input { font-size: 0.95rem; }
+    .player-entry { padding: 10px 14px; }
+    .add-player-btn { padding: 12px; font-size: 0.85rem; }
+
+    /* ===== GAME SCREEN: 3-panel grid ===== */
+    #game-screen.active {
+        display: grid;
+        grid-template-columns: 220px 1fr 280px;
+        grid-template-rows: auto 1fr;
+        height: 100dvh;
+        min-height: 0;
+        overflow: hidden;
+    }
+
+    .game-header {
+        grid-column: 1 / -1;
+        grid-row: 1;
+        padding: 10px 24px;
+    }
+    .game-mode-label { font-size: 1.15rem; }
+    .checkout-rule-label { font-size: 0.65rem; }
+
+    /* -- Left sidebar: player scoreboard -- */
+    .players-container {
+        grid-column: 1;
+        grid-row: 2;
+        flex-direction: column;
+        overflow-y: auto;
+        overflow-x: hidden;
+        scroll-snap-type: none;
+        padding: 16px 10px;
+        gap: 10px;
+        border-right: 1px solid var(--border);
+        background: var(--bg-secondary);
+    }
+    .player-card {
+        min-width: 0;
+        max-width: none;
+        width: 100%;
+        scroll-snap-align: none;
+    }
+    .player-card:not(.active):hover {
+        background: var(--bg-card-hover);
+        border-color: var(--border-light);
+        transform: translateX(3px);
+    }
+    .player-card.active::before {
+        top: 15%; bottom: 15%; left: -1.5px; right: auto;
+        width: 3px; height: auto;
+        border-radius: 0 3px 3px 0;
+    }
+    .card-avatar { width: 40px; height: 40px; font-size: 1.3rem; }
+    .card-score { font-size: 1.6rem; }
+    .card-name { font-size: 0.72rem; }
+    .card-last-score { font-size: 0.62rem; }
+
+    /* -- Center + Right: main game area -- */
+    .input-section {
+        grid-column: 2 / -1;
+        grid-row: 2;
+        display: grid;
+        grid-template-columns: 1fr 280px;
+        grid-template-rows: auto auto 1fr auto auto;
+        background: var(--bg-secondary);
+        border-radius: 0;
+        border-top: none;
+        padding: 0;
+        position: relative;
+    }
+
+    /* Right panel card background */
+    .input-section::after {
+        content: '';
+        position: absolute;
+        top: 0; right: 0; bottom: 0;
+        width: 280px;
+        background: var(--bg-card);
+        border-left: 1px solid var(--border);
+        pointer-events: none;
+        z-index: 0;
+    }
+
+    /* -- Center: dartboard -- */
+    .dartboard-container {
+        grid-column: 1;
+        grid-row: 1 / -1;
+        padding: 24px;
+    }
+    /* Subtle glow behind the board */
+    .dartboard-container::before {
+        content: '';
+        position: absolute;
+        width: 90%; height: 90%;
+        top: 5%; left: 5%;
+        background: radial-gradient(circle, rgba(0,229,255,0.05) 0%, transparent 65%);
+        pointer-events: none;
+        z-index: -1;
+        border-radius: 50%;
+    }
+    #dartboard-canvas {
+        filter: drop-shadow(0 0 30px rgba(0,229,255,0.08));
+    }
+
+    /* -- Right panel: score & controls -- */
+    .score-display {
+        grid-column: 2;
+        grid-row: 1;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        text-align: center;
+        padding: 28px 20px 12px;
+        gap: 10px;
+        margin: 0;
+        background: transparent;
+        position: relative;
+        z-index: 1;
+    }
+    .current-player-indicator { flex-direction: column; gap: 8px; }
+    .indicator-avatar { width: 44px; height: 44px; font-size: 1.4rem; border-width: 2px; }
+    #current-player-name { font-size: 1.05rem; font-weight: 600; }
+    .score-input-display {
+        font-size: 3.5rem; min-width: auto;
+        text-shadow: 0 0 30px var(--accent-glow);
+    }
+
+    .dart-tracker {
+        grid-column: 2;
+        grid-row: 2;
+        flex-wrap: wrap;
+        justify-content: center;
+        margin: 0;
+        padding: 10px 16px 12px;
+        border-radius: 0;
+        border: none;
+        border-bottom: 1px solid var(--border);
+        background: transparent;
+        position: relative;
+        z-index: 1;
+    }
+    .dart-dot { width: 10px; height: 10px; }
+    .dart-scores { text-align: center; flex-basis: 100%; margin-top: 4px; }
+
+    /* Keyboard shortcut hints (desktop only) */
+    .dart-tracker::after {
+        content: 'Enter: Submit  •  Backspace: Undo dart  •  Esc: Clear  •  Ctrl+Z: Undo turn';
+        flex-basis: 100%;
+        font-size: 0.55rem;
+        color: var(--text-muted);
+        text-align: center;
+        margin-top: 8px;
+        opacity: 0.45;
+        font-family: 'Inter', sans-serif;
+        letter-spacing: 0;
+        line-height: 1.4;
+    }
+
+    .miss-board-btn {
+        grid-column: 2;
+        grid-row: 4;
+        margin: 0 16px;
+        position: relative;
+        z-index: 1;
+    }
+
+    .submit-btn {
+        grid-column: 2;
+        grid-row: 5;
+        margin: 0 16px 16px;
+        padding: 14px;
+        position: relative;
+        z-index: 1;
+    }
+
+    /* ===== WINNER BANNER ===== */
+    .winner-banner-inner { max-width: 440px; padding: 36px 32px; }
+    .banner-trophy { font-size: 3.2rem; }
+    .banner-avatar { font-size: 2.6rem; }
+    .banner-text { font-size: 1.3rem; }
+    .banner-actions { flex-direction: row; gap: 12px; }
+    .banner-btn { width: auto; flex: 1; }
+
+    /* ===== FINISH SCREEN ===== */
+    .finish-container { max-width: 800px; }
+    .finish-title { font-size: 1.8rem; letter-spacing: 5px; }
+    .finish-meta { font-size: 0.82rem; }
+
+    .lb-card { padding: 14px 18px; }
+    .lb-rank { font-size: 1.3rem; width: 36px; }
+    .lb-avatar { width: 44px; height: 44px; font-size: 1.3rem; }
+    .lb-name { font-size: 0.95rem; }
+    .lb-score { font-size: 1.4rem; }
+
+    .finish-detailed-stats {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+    }
+    .finish-detailed-stats .finish-section-title {
+        grid-column: 1 / -1;
+    }
+    .psc-grid { grid-template-columns: repeat(3, 1fr); }
+    .psc-stat-value { font-size: 1.1rem; }
+
+    .hotspot-carousel {
+        flex-wrap: wrap;
+        justify-content: center;
+        overflow-x: visible;
+        scroll-snap-type: none;
+        gap: 24px;
+    }
+    .hotspot-slide { flex: 0 0 auto; }
+    .hotspot-dots { display: none; }
+
+    .game-log { max-height: 400px; font-size: 0.76rem; }
+    .log-result { font-size: 0.7rem; }
+
+    .finish-actions { gap: 12px; }
+    .share-action { width: auto; flex: 1; }
+
+    /* ===== MODALS ===== */
+    .rules-modal-content { max-width: 580px; padding: 28px 24px; }
+    .rule-section p, .rule-section li { font-size: 0.85rem; }
+    .rule-section h3 { font-size: 0.95rem; }
+    .avatar-modal-content { max-width: 440px; }
+    .avatar-grid { grid-template-columns: repeat(7, 1fr); gap: 8px; }
+    .avatar-option { font-size: 1.6rem; }
+
+    /* ===== HELP FAB ===== */
+    .help-fab { right: 24px; bottom: 24px; width: 48px; height: 48px; font-size: 1.2rem; }
+}
+
+/* ============ LARGE DESKTOP ============ */
+@media (min-width: 1200px) {
+    #game-screen.active {
+        grid-template-columns: 260px 1fr 320px;
+    }
+    .input-section {
+        grid-template-columns: 1fr 320px;
+    }
+    .input-section::after { width: 320px; }
+    .card-score { font-size: 1.8rem; }
+    .card-avatar { width: 44px; height: 44px; }
+    .score-input-display { font-size: 4rem; }
+    .indicator-avatar { width: 50px; height: 50px; font-size: 1.5rem; }
+    .finish-container { max-width: 960px; }
+}
